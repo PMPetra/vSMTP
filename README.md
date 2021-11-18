@@ -6,7 +6,7 @@ You can follow us on https://www.viridit.com/
 
 ## Why vSMTP ?
 Whereas optimizing allocated resources is becoming a growing challenge, computer attacks remain a constant issue.  
-Over 300 billion emails are sent and received in the world every day. Billions of attachments are processed, analyzed and delivered, contributing to the increase in greenhouse gas emissions.
+Over 300 billion emails are sent and received in the world every day. Billions of attachments are processed, analyzed and delivered, contributing to the increase in greenhouse gas emissions.  
 To meet this challenge, viridIT is developing a new technology of email gateways, also called vSMTP.
 
 ## Why should I try vSMTP ?
@@ -19,7 +19,7 @@ Because it is secured, faster and greener.
 The standard version of vSMTP is free and under an Open Source license.   
 It is provided as usual without any warranty.  
 Please refer to the LICENSE file for further informations.
-
+ 
 ## What is the roadmap ?
 vSMTP is currently under development.  
 The current version "RC1" focus on the SMTP connection and state machine.  
