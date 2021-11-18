@@ -28,7 +28,7 @@ rule connect "From_MDA" #{
 rule connect "From_Private" #{ 
     condition: || vsl.IS_CONNECT("Private_NET"),
     on_success: || { 
-        vsl.LOG(`${date}:${time} : Connection from internal IP : ${source_ip}`, "SEC_LOG"); 
+        vsl.LOG(`${date}:${time} : Connection attempt from internal IP : ${source_ip}`, "SEC_LOG"); 
         vsl.DENY()
     }
     // Shortcut - we allow everything else
