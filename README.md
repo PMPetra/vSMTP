@@ -6,7 +6,7 @@ You can follow us on https://www.viridit.com/
 
 ## Why vSMTP ?
 Whereas optimizing allocated resources is becoming a growing challenge, computer attacks remain a constant issue.  
-Over 300 billion emails are sent and received in the world every day. Billions of duplicated attachments are processed, analyzed and delivered, contributing to the increase in greenhouse gas emissions.
+Over 300 billion emails are sent and received in the world every day. Billions of attachments are processed, analyzed and delivered, contributing to the increase in greenhouse gas emissions.
 To meet this challenge, viridIT is developing a new technology of email gateways, also called vSMTP.
 
 ## Why should I try vSMTP ?
