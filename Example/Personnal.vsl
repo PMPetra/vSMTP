@@ -1,1 +1,69 @@
+// Objects
+obj ip4 "MDA_IP" "192.168.0.1";
+obj fqdn "Local_DN" "foobar.com"
+
+// Private networks
+obj grp "Private_NET" [
+    obj rg4 "192_NET" "192.168.0.0/16";
+    obj rg4 "172_NET" "172.16.0.0/12";
+    obj rg4 "10_NET" "10.0.0.0/8";
+]
+
+obj val "SEC_LOG" "/var/log/mail/sec_log"
+
+// MDA -> MTA : Force Accept
+// MDA did all security checks for outgoing mails
+rule connect "From_MDA" #{ 
+    condition: || vsl.IS_CONNECT("MDA_IP"),
+    on_success: vsl.FACCEPT,
+    on_failure: vsl.DENY,
+} 
+
+// Other internal -> MTA : Deny
+// Endusers can't directly connect to the MTA
+// Paranoid has this a firewall rule should already block the trafic
+rule connect "From_Private" #{ 
+    condition: || vsl.IS_CONNECT("Private_NET"),
+    on_success: || { 
+        vsl.LOG(`${date}:${time} : Connection from internal IP : ${source_ip}`, "SEC_LOG"); 
+        vsl.DENY()
+    }
+    // Shortcut - we allow everything else
+    on_failure: vsl.ACCEPT,
+} 
+
+// QUE CE PASSE-T-IL SI IL N'Y A PAS DE RULE POUR UN STAGE ?
+rule mail "Mail_Antirelay" #{
+    condition: || vsl.IS_MAIL("Local_DN") && !vsl.IS_CONNECT("MDA_IP"),
+    on_success: { 
+        vsl.LOG(`${date}:${time} : Relay attempt from : ${source_ip}`, "SEC_LOG"); 
+        vsl.DENY(),
+    on_failure: vsl.CONTINUE,
+    }
+}
+
+// Et là ??? plouf... quid d'un continue orphelin en fin de stage ? cf. plus bas
+// Un default behavior serait qd même utile.
+
+// Anti-relaying
+// 
+rule rcpt "Rcpt_Antirelay" #{
+    condition: || !vsl.IS_RCPT("Local_DN") && !vsl.IS_CONNECT("MDA_IP"),
+    on_success: { 
+        vsl.LOG(`${date}:${time} : Relay attempt from : ${source_ip}`, "SEC_LOG"); 
+        vsl.DENY(),
+    on_failure: vsl.CONTINUE,
+    }
+}
+
+// ...
+// many rcpt rules
+// ... and if required :
+
+rule rcpt "rcpt_endrule" #{
+    condition: true,
+    on_success: ACCEPT,
+    on_failure: ACCEPT,
+    }
+}
 
