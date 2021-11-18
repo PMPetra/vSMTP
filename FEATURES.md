@@ -5,6 +5,8 @@
 ### Networking
 - Async SMTP connexion  
 - TLS integration (STARTTLS)  
+- Delivery queue
+- MailDir (for IMAP) protocol support
 - 3rd party library for remote delivery
 
 ### Filtering
@@ -25,7 +27,8 @@
 
 ## Release Candidate 2
 
-### Networking
+### Networking and processing
+- Post SMTP queue
 - Delivery agent
 ### Filtering
 - MIME compliancy  
@@ -37,6 +40,7 @@
 <br>
 
 ## Release Candidate 3
+
 ### Filtering
 - SMTP policy server  
 
