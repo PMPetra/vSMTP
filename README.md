@@ -23,7 +23,7 @@ Please refer to the LICENSE file for further informations.
 ## What is the roadmap ?
 vSMTP is currently under development.  
 The current version "RC1" focus on the SMTP connection and state machine.  
-You can find more information about the project agenda in the [FEATURES](https://github.com/viridIT/vSMTP/blob/main/FEATURES.md) and [ROADMAP](https://github.com/viridIT/vSMTP/blob/main/ROADMAP.md) files.
+You can find more information about the project agenda in the [ROADMAP](https://github.com/viridIT/vSMTP/blob/main/ROADMAP.md) and [FEATURES](https://github.com/viridIT/vSMTP/blob/main/FEATURES.md) files.
 
 ## Where should I find informations ?
 About the code and related issues, please use the GitHub issue tracker.  
