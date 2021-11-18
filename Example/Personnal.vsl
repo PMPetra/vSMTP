@@ -9,6 +9,9 @@ obj grp "Private_NET" [
     obj rg4 "10_NET" "10.0.0.0/8";
 ]
 
+// Certains objets devraient être "embedded"...
+
+
 obj val "SEC_LOG" "/var/log/mail/sec_log"
 
 // MDA -> MTA : Force Accept
