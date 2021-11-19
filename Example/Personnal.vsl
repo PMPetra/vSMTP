@@ -57,8 +57,8 @@ rule mail "Mail_Antirelay" #{
     on_success: { 
         vsl.LOG(`${date}:${time} : Relay attempt from : ${source_ip}`, "SEC_LOG"); 
         vsl.DENY(),
-    on_failure: vsl.CONTINUE,
     }
+    on_failure: vsl.CONTINUE,
 }
 
 ///////////////////////////////// Et là ??? plouf... quid d'un continue orphelin en fin de stage ? cf. plus bas
@@ -71,8 +71,8 @@ rule rcpt "Rcpt_Antirelay" #{
     on_success: { 
         vsl.LOG(`${date}:${time} : Relay attempt from : ${source_ip}`, "SEC_LOG"); 
         vsl.DENY(),
-    on_failure: vsl.CONTINUE,
     }
+    on_failure: vsl.CONTINUE,
 }
 
 
@@ -91,7 +91,6 @@ rule rcpt "rcpt_endrule" #{
     condition: true,
     on_success: vsl.ACCEPT,
     on_failure: vsl.ACCEPT,
-    }
 }
 
 rule data "mail_stat" #{
