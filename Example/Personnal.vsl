@@ -1,6 +1,6 @@
 // Objects
 obj ip4 "MDA_IP" "192.168.0.1";
-obj fqdn "Local_DN" "foobar.com"
+obj fqdn "Local_DN" "foobar.com";
 
 // Private networks
 obj grp "Private_NET" [
@@ -11,10 +11,10 @@ obj grp "Private_NET" [
 
 ////////////////////////////////// Certains objets devraient être "embedded"...
 
-obj val "SEC_LOG" "/var/log/mail/sec_log"
+obj val "SEC_LOG" "/var/log/mail/sec_log";
 
 // Connection blacklist
-obj file:addr "Con_BlckLst" "/var/tmp/vmta/con_blacklist"
+obj file:addr "Con_BlckLst" "/var/tmp/vmta/con_blacklist";
 ///////////////////////////////// il faudrait ajouter les DB Berkeley au moins
 
 
@@ -80,9 +80,8 @@ rule rcpt "Rcpt_user_syntax" #{
     condition: || vsl.IS_RCPT("User_Syntax"),
     on_success: vsl.ACCEPT,
     on_failure: vsl.CONTINUE,
-    
 }
-
+///////////////////////////////// Il faut un plugin ldap.
 
 // ...
 // many rcpt rules
@@ -94,6 +93,20 @@ rule rcpt "rcpt_endrule" #{
     on_failure: vsl.ACCEPT,
     }
 }
+
+rule data "mail_stat" #{
+    condition: true,
+    on_success: vsl.DUMP("/var/spool/mta/${msg_id})"),
+    on_failure: vsl.DUMP("/var/spool/mta/${msg_id})"),
+}
+///// Pour DUMP je me demande si il faut pas dumper la structure en fct du stage.
+///// Il est interessant de se limiter à ce que l'on souhaite obtenir comme info.
+///// contrairement à write, bcc ou quarantine où il faut avoir tout le mail.
+
+
+/////////////// Ces deux règles me semblent délirantes... doit y avoir moyen de faire plus simple.
+
+
 
 /////////////////////////// Rule pour le delivery ?
 rule deliver "local_user" #{
