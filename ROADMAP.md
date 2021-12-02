@@ -1,7 +1,7 @@
 # vSMTP roadmap
 
 ## Release Candidate 1
-Available on : December 2021, 1st  
+Available on : December 2021, 6th 
 Focus on : connexion handling, SMTP (RFC 5321/5322) compliancy and scripting language (vSL)
 
 ## Release Candidate 2
