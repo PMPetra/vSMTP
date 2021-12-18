@@ -1,0 +1,15 @@
+{
+    "recommendations": [
+        "wayou.vscode-todo-highlight",
+        "davidanson.vscode-markdownlint",
+        "matklad.rust-analyzer",
+        "tamasfe.even-better-toml",
+        "serayuzgur.crates",
+        "streetsidesoftware.code-spell-checker",
+        "vadimcn.vscode-lldb"
+    ],
+    "unwantedRecommendations": [
+        "rust-lang.rust",
+        "coenraads.bracket-pair-colorizer-2"
+    ]
+}

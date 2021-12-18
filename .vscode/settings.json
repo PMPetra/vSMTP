@@ -1,0 +1,50 @@
+{
+    "cSpell.words": [
+        "alpn",
+        "appender",
+        "capath",
+        "chrono",
+        "cipherlist",
+        "clamav",
+        "ehlo",
+        "ENHANCEDSTATUSCODES",
+        "Expn",
+        "Faccept",
+        "fullchain",
+        "helo",
+        "humantime",
+        "lettre",
+        "libmilter",
+        "maildir",
+        "nonblocking",
+        "pemfile",
+        "preq",
+        "rcpts",
+        "rhai",
+        "roadmap",
+        "Rset",
+        "rustls",
+        "STARTTLS",
+        "viridit",
+        "vmta",
+        "Vrfy",
+        "VSMTP"
+    ],
+    "todohighlight.isCaseSensitive": false,
+    "todohighlight.keywords": [
+        {
+            "text": "NOTE:",
+            "color": "#000000",
+            "backgroundColor": "cyan",
+            "overviewRulerColor": "grey"
+        },
+        {
+            "text": "https://datatracker.ietf.org/doc/html/rfc",
+            "color": "#000000",
+            "backgroundColor": "olive",
+            "overviewRulerColor": "grey",
+            "cursor": "pointer",
+        }
+    ],
+    "rust-analyzer.checkOnSave.command": "clippy"
+}

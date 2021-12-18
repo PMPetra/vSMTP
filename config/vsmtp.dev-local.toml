@@ -1,0 +1,44 @@
+### See vsmtp.default.toml documentation for this file format
+
+domain = "testserver.com"
+
+[server]
+addr = "0.0.0.0:10025"
+
+[log]
+file = "./tmp/var/log/vsmtp/vsmtp.log"
+
+[log.level]
+default = "trace"
+
+[rules]
+dir = "./config/rules"
+
+[tls]
+security_level = "May"
+capath = "./config/certs"
+preempt_cipherlist = true
+handshake_timeout = "100ms"
+
+fullchain = "{capath}/certificate.crt"
+private_key = "{capath}/privateKey.key"
+
+[[tls.sni_maps]]
+domain = "testserver.com"
+fullchain = "{capath}/fullchain.{domain}.pem"
+private_key = "{capath}/rsa.{domain}.pem"
+
+[smtp]
+spool_dir = "./tmp/var/spool/vsmtp"
+rcpt_count_max = 25
+disable_ehlo = false
+
+[smtp.timeout_client]
+
+[smtp.error]
+soft_count = 5
+hard_count = 10
+delay = "5000ms"
+
+[smtp.code]
+Code214 = "214 my custom help message\r\n"
