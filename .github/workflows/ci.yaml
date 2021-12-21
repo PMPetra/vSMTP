@@ -1,11 +1,9 @@
 name: CI
-on:
+'on':
   pull_request:
     branches:
       - '**'
-    branches-ignore:
       - '!doc/**'
-  pull_request: null
 jobs:
   check:
     runs-on: ubuntu-latest
