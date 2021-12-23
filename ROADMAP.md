@@ -24,8 +24,8 @@ About filtering functionalities :
 - User defined quarantine queues and logs.
 - JSON and RAW exports.
 
-> This version only manages incoming mails. An IMAP server is required. 
-> For outgoing mail you must use your current SMTP server.
+> This version only manages incoming mails. An IMAP server is required. For
+> outgoing mail you must use your current SMTP server.
 
 ## Release 0.8.x
 
@@ -57,5 +57,5 @@ It can be called at any stage of a SMTP transaction via the rule engine.
 
 ## Production release
 
-Depending on versions 0.7+ fixes and user feedbacks, the production version is 
+Depending on versions 0.7+ fixes and user feedbacks, the production version is
 expected for Q2/2022.

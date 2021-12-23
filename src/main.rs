@@ -15,7 +15,7 @@
  *
 **/
 use vsmtp::config::server_config::ServerConfig;
-use vsmtp::resolver::ResolverWriteDisk;
+use vsmtp::resolver::MailDirResolver;
 use vsmtp::rules::rule_engine;
 
 #[tokio::main]
@@ -42,7 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         toml::from_str(&std::fs::read_to_string(config).expect("cannot read file"))
             .expect("cannot parse config from toml");
 
-    ResolverWriteDisk::init_spool_folder(&config.smtp.spool_dir)
+    MailDirResolver::init_spool_folder(&config.smtp.spool_dir)
         .expect("Failed to initialize the spool directory");
 
     // the leak is needed to pass from &'a str to &'static str
@@ -51,11 +51,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Err(error) = rule_engine::init(Box::leak(rules_dir.into_boxed_str())) {
         // we can't use logs here because it is initialized when building the server.
         // NOTE: should we remove the log initialization inside the server ?
-        eprintln!("could not initialize the rule engine: {}", error);
+        eprintln!("could not initalize the rule engine: {}", error);
         return Err(error);
     }
 
-    let server = config.build::<ResolverWriteDisk>().await;
+    let server = config.build::<MailDirResolver>().await;
 
     log::warn!("Listening on: {:?}", server.addr());
     server.listen_and_serve().await
