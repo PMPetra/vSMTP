@@ -14,6 +14,7 @@ mod tests {
             #[async_trait::async_trait]
             impl DataEndResolver for T {
                 async fn on_data_end(
+                    &mut self,
                     _: &ServerConfig,
                     ctx: &MailContext,
                 ) -> Result<SMTPReplyCode, std::io::Error> {
@@ -28,7 +29,8 @@ mod tests {
                 }
             }
 
-            assert!(test_receiver::<T>(
+            assert!(test_receiver(
+                std::sync::Arc::new(tokio::sync::Mutex::new(T)),
                 [
                     "HELO foobar\r\n",
                     "MAIL FROM:<john@doe>\r\n",

@@ -15,7 +15,7 @@
  *
 **/
 use vsmtp::config::server_config::ServerConfig;
-use vsmtp::resolver::MailDirResolver;
+use vsmtp::resolver::maildir_resolver::MailDirResolver;
 use vsmtp::rules::rule_engine;
 
 #[derive(clap::Parser, Debug)]
@@ -35,8 +35,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         toml::from_str(&std::fs::read_to_string(args.config).expect("cannot read file"))
             .expect("cannot parse config from toml");
 
+    /*
     MailDirResolver::init_spool_folder(&config.smtp.spool_dir)
         .expect("Failed to initialize the spool directory");
+    */
 
     // the leak is needed to pass from &'a str to &'static str
     // and initialize the rule engine's rule directory.
@@ -48,8 +50,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err(error);
     }
 
-    let server = config.build::<MailDirResolver>().await;
+    let (s, r) = crossbeam_channel::bounded::<String>(0);
 
-    log::warn!("Listening on: {:?}", server.addr());
-    server.listen_and_serve().await
+    tokio::spawn(async move {
+        let server = config.build().await;
+        log::warn!("Listening on: {:?}", server.addr());
+
+        server
+            .listen_and_serve(std::sync::Arc::new(tokio::sync::Mutex::new(
+                MailDirResolver::new(s),
+            )))
+            .await?;
+
+        std::io::Result::Ok(())
+    });
+
+    loop {
+        if let Ok(name) = r.try_recv() {
+            println!("No one received {}’s message.", name);
+        }
+    }
 }

@@ -13,6 +13,7 @@ struct DefaultResolverTest;
 #[async_trait::async_trait]
 impl DataEndResolver for DefaultResolverTest {
     async fn on_data_end(
+        &mut self,
         _: &ServerConfig,
         _: &MailContext,
     ) -> Result<SMTPReplyCode, std::io::Error> {
@@ -25,12 +26,13 @@ fn get_test_config() -> ServerConfig {
 }
 
 fn make_bench<R: vsmtp::resolver::DataEndResolver>(
+    resolver: std::sync::Arc<tokio::sync::Mutex<R>>,
     b: &mut Bencher<WallTime>,
     (input, output, config): &(&[u8], &[u8], ServerConfig),
 ) {
     b.to_async(tokio::runtime::Runtime::new().unwrap())
         .iter(|| async {
-            let _ = test_receiver::<R>(input, output, config.clone()).await;
+            let _ = test_receiver(resolver.clone(), input, output, config.clone()).await;
         })
 }
 
@@ -41,6 +43,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         #[async_trait::async_trait]
         impl DataEndResolver for T {
             async fn on_data_end(
+                &mut self,
                 _: &ServerConfig,
                 ctx: &MailContext,
             ) -> Result<SMTPReplyCode, std::io::Error> {
@@ -82,7 +85,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 .as_bytes(),
                 get_test_config(),
             ),
-            |b, input| make_bench::<T>(b, input),
+            |b, input| make_bench(std::sync::Arc::new(tokio::sync::Mutex::new(T {})), b, input),
         );
     }
 
@@ -98,7 +101,13 @@ fn criterion_benchmark(c: &mut Criterion) {
             .as_bytes(),
             get_test_config(),
         ),
-        |b, input| make_bench::<DefaultResolverTest>(b, input),
+        |b, input| {
+            make_bench(
+                std::sync::Arc::new(tokio::sync::Mutex::new(DefaultResolverTest {})),
+                b,
+                input,
+            )
+        },
     );
 }
 

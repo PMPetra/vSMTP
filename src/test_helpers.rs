@@ -16,7 +16,7 @@
 **/
 use crate::{
     config::server_config::ServerConfig, connection::Connection, io_service::IoService,
-    model::mail::MailContext, resolver::DataEndResolver, server::handle_client,
+    model::mail::MailContext, resolver::DataEndResolver, server::ServerVSMTP,
     smtp::code::SMTPReplyCode,
 };
 
@@ -55,6 +55,7 @@ pub struct DefaultResolverTest;
 #[async_trait::async_trait]
 impl DataEndResolver for DefaultResolverTest {
     async fn on_data_end(
+        &mut self,
         _: &ServerConfig,
         _: &MailContext,
     ) -> Result<SMTPReplyCode, std::io::Error> {
@@ -63,6 +64,7 @@ impl DataEndResolver for DefaultResolverTest {
 }
 
 pub async fn test_receiver<T: DataEndResolver>(
+    resolver: std::sync::Arc<tokio::sync::Mutex<T>>,
     smtp_input: &[u8],
     expected_output: &[u8],
     mut config: ServerConfig,
@@ -78,7 +80,7 @@ pub async fn test_receiver<T: DataEndResolver>(
         &mut io,
     )?;
 
-    handle_client::<T, Mock<'_>>(&mut conn, None).await?;
+    ServerVSMTP::handle_connection::<T, Mock<'_>>(&mut conn, resolver, None).await?;
     std::io::Write::flush(&mut conn.io_stream.inner)?;
 
     assert_eq!(
