@@ -42,15 +42,8 @@ fn chown_file(path: &std::path::Path, user: &users::User) -> std::io::Result<()>
     Ok(())
 }
 
-pub struct MailDirResolver {
-    sender: crossbeam_channel::Sender<String>,
-}
-
-impl MailDirResolver {
-    pub fn new(sender: crossbeam_channel::Sender<String>) -> Self {
-        Self { sender }
-    }
-}
+#[derive(Default)]
+pub struct MailDirResolver;
 
 impl MailDirResolver {
     // getting user's home directory using getpwuid.
@@ -186,12 +179,8 @@ impl DataEndResolver for MailDirResolver {
                         "Couldn't write email to inbox: {:?}",
                         error
                     );
-                } else {
-                    self.sender
-                        .send(mail.metadata.as_ref().unwrap().message_id.clone())
-                        .map_err(|e| {
-                            std::io::Error::new(std::io::ErrorKind::Other, format!("{}", e))
-                        })?;
+
+                    return Err(error);
                 }
             } else {
                 log::trace!(

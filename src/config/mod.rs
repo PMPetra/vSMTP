@@ -7,6 +7,7 @@ pub mod log_channel {
     pub const RECEIVER: &str = "receiver";
     pub const RESOLVER: &str = "resolver";
     pub const RULES: &str = "rules";
+    pub const DELIVER: &str = "deliver";
 }
 
 pub fn get_logger_config(
