@@ -20,7 +20,7 @@ use vsmtp::config::server_config::ServerConfig;
 use vsmtp::mime::parser::MailMimeParser;
 use vsmtp::model::mail::Body;
 use vsmtp::resolver::deliver_queue::{DeliverQueueResolver, Queue};
-use vsmtp::resolver::maildir_resolver::MailDirResolver;
+use vsmtp::resolver::smtp_resolver::SMTPResolver;
 use vsmtp::resolver::DataEndResolver;
 use vsmtp::rules::rule_engine;
 use vsmtp::server::ServerVSMTP;
@@ -86,7 +86,7 @@ async fn v_deliver(
                 message_id
             );
         } else {
-            let mut resolver = MailDirResolver::default();
+            let mut resolver = SMTPResolver::default();
             match resolver.on_data_end(config, &mail).await {
                 Ok(_) => {
                     log::trace!(
@@ -170,7 +170,7 @@ async fn v_deliver(
         let mail: vsmtp::model::mail::MailContext = serde_json::from_str(&raw)?;
         assert_eq!(message_id, mail.metadata.as_ref().unwrap().message_id);
 
-        let mut resolver = MailDirResolver::default();
+        let mut resolver = SMTPResolver::default();
         match resolver.on_data_end(config, &mail).await {
             Ok(_) => {
                 log::trace!(
