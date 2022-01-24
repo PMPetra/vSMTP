@@ -23,6 +23,7 @@ pub enum Queue {
     Deliver,
     Deferred,
     Dead,
+    Quarantine,
 }
 
 impl Queue {
@@ -32,6 +33,7 @@ impl Queue {
             Queue::Deliver => "deliver",
             Queue::Deferred => "deferred",
             Queue::Dead => "dead",
+            Queue::Quarantine => "quarantine",
         }
     }
 
@@ -49,13 +51,20 @@ impl Queue {
     /// write the email to a queue and send the message id to another process.
     pub async fn write_to_queue(
         &self,
-        sender: &tokio::sync::mpsc::Sender<String>,
         config: &ServerConfig,
         ctx: &crate::model::mail::MailContext,
-    ) -> Result<(), std::io::Error> {
-        let to_deliver = self
-            .to_path(&config.smtp.spool_dir)?
-            .join(&ctx.metadata.as_ref().unwrap().message_id);
+    ) -> std::io::Result<()> {
+        let message_id = match ctx.metadata.as_ref() {
+            Some(metadata) => &metadata.message_id,
+            None => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "metadata not found",
+                ))
+            }
+        };
+
+        let to_deliver = self.to_path(&config.smtp.spool_dir)?.join(message_id);
 
         // TODO: should loop if a file name is conflicting.
         let mut file = std::fs::OpenOptions::new()
@@ -65,22 +74,12 @@ impl Queue {
 
         std::io::Write::write_all(&mut file, serde_json::to_string(ctx)?.as_bytes())?;
 
-        let message_id = ctx.metadata.as_ref().unwrap().message_id.clone();
-
         log::trace!(
             target: RECEIVER,
             "mail {} successfully written to {} queue",
             message_id,
             self.as_str()
         );
-
-        // sending the message id to the delivery process.
-        // NOTE: we could send the context instead, so that the delivery system won't have
-        //       to touch the file system.
-        sender
-            .send(message_id)
-            .await
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))?;
 
         Ok(())
     }

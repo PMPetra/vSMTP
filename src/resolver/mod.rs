@@ -18,7 +18,6 @@ use crate::{
     config::server_config::ServerConfig, model::mail::MailContext, smtp::code::SMTPReplyCode,
 };
 
-pub mod deliver_queue;
 pub mod maildir_resolver;
 pub mod smtp_resolver;
 
@@ -29,4 +28,9 @@ pub trait DataEndResolver {
         config: &ServerConfig,
         mail: &MailContext,
     ) -> std::io::Result<SMTPReplyCode>;
+}
+
+#[async_trait::async_trait]
+pub trait Resolver {
+    async fn deliver(&self, config: &ServerConfig, mail: &MailContext) -> std::io::Result<()>;
 }

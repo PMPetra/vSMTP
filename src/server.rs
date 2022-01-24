@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 /**
  * vSMTP mail transfer agent
  * Copyright (C) 2021 viridIT SAS
@@ -18,13 +20,16 @@ use crate::{
     config::server_config::{ServerConfig, TlsSecurityLevel},
     connection::Connection,
     io_service::IoService,
+    processes::ProcessMessage,
     queue::Queue,
+    resolver::Resolver,
     smtp::code::SMTPReplyCode,
     tls::get_rustls_config,
     transaction::Transaction,
 };
 
 pub struct ServerVSMTP {
+    resolvers: HashMap<String, Box<dyn Resolver + Send + Sync>>,
     listener: tokio::net::TcpListener,
     tls_config: Option<std::sync::Arc<rustls::ServerConfig>>,
     config: std::sync::Arc<ServerConfig>,
@@ -45,6 +50,7 @@ impl ServerVSMTP {
         }
 
         Ok(Self {
+            resolvers: HashMap::new(),
             listener: tokio::net::TcpListener::bind(&config.server.addr).await?,
             tls_config: if config.tls.security_level == TlsSecurityLevel::None {
                 None
@@ -61,7 +67,15 @@ impl ServerVSMTP {
             .expect("cannot retrieve local address")
     }
 
-    pub async fn listen_and_serve(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn with_resolver<T>(&mut self, name: &str, resolver: T) -> &mut Self
+    where
+        T: Resolver + Send + Sync + 'static,
+    {
+        self.resolvers.insert(name.to_string(), Box::new(resolver));
+        self
+    }
+
+    pub async fn listen_and_serve(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let delivery_buffer_size = self
             .config
             .delivery
@@ -72,7 +86,7 @@ impl ServerVSMTP {
             .unwrap_or(1);
 
         let (delivery_sender, delivery_receiver) =
-            tokio::sync::mpsc::channel::<String>(delivery_buffer_size);
+            tokio::sync::mpsc::channel::<ProcessMessage>(delivery_buffer_size);
 
         let working_buffer_size = self
             .config
@@ -84,22 +98,22 @@ impl ServerVSMTP {
             .unwrap_or(1);
 
         let (working_sender, working_receiver) =
-            tokio::sync::mpsc::channel::<String>(working_buffer_size);
+            tokio::sync::mpsc::channel::<ProcessMessage>(working_buffer_size);
 
         let config_deliver = self.config.clone();
+        let resolvers = std::mem::take(&mut self.resolvers);
         tokio::spawn(async move {
-            let result = crate::processes::delivery::start(config_deliver, delivery_receiver).await;
+            let result =
+                crate::processes::delivery::start(resolvers, config_deliver, delivery_receiver)
+                    .await;
             log::error!("v_deliver ended unexpectedly '{:?}'", result);
         });
 
         let config_mime = self.config.clone();
         tokio::spawn(async move {
-            let result = crate::processes::mime::start(
-                config_mime.smtp.spool_dir.clone(),
-                working_receiver,
-                delivery_sender,
-            )
-            .await;
+            let result =
+                crate::processes::mime::start(&config_mime, working_receiver, delivery_sender)
+                    .await;
             log::error!("v_mime ended unexpectedly '{:?}'", result);
         });
 
@@ -192,7 +206,7 @@ impl ServerVSMTP {
 
     pub async fn handle_connection<S>(
         conn: &mut Connection<'_, S>,
-        working_sender: std::sync::Arc<tokio::sync::mpsc::Sender<String>>,
+        working_sender: std::sync::Arc<tokio::sync::mpsc::Sender<ProcessMessage>>,
         tls_config: Option<std::sync::Arc<rustls::ServerConfig>>,
     ) -> Result<(), std::io::Error>
     where
@@ -208,11 +222,19 @@ impl ServerVSMTP {
                 crate::transaction::TransactionResult::Mail(mail) => {
                     helo_domain = Some(mail.envelop.helo.clone());
 
-                    match Queue::Working
-                        .write_to_queue(&working_sender, &conn.config, &mail)
-                        .await
-                    {
-                        Ok(_) => conn.send_code(SMTPReplyCode::Code250)?,
+                    match Queue::Working.write_to_queue(&conn.config, &mail).await {
+                        Ok(_) => {
+                            working_sender
+                                .send(ProcessMessage {
+                                    message_id: mail.metadata.as_ref().unwrap().message_id.clone(),
+                                })
+                                .await
+                                .map_err(|err| {
+                                    std::io::Error::new(std::io::ErrorKind::Other, err.to_string())
+                                })?;
+
+                            conn.send_code(SMTPReplyCode::Code250)?
+                        }
                         Err(error) => {
                             log::error!("couldn't write to queue: {}", error);
                             conn.send_code(SMTPReplyCode::Code554)?
@@ -264,11 +286,27 @@ impl ServerVSMTP {
                             crate::transaction::TransactionResult::Mail(mail) => {
                                 secured_helo_domain = Some(mail.envelop.helo.clone());
 
-                                match Queue::Working
-                                    .write_to_queue(&working_sender, &conn.config, &mail)
-                                    .await
-                                {
-                                    Ok(_) => secured_conn.send_code(SMTPReplyCode::Code250)?,
+                                match Queue::Working.write_to_queue(&conn.config, &mail).await {
+                                    Ok(_) => {
+                                        working_sender
+                                            .send(ProcessMessage {
+                                                message_id: mail
+                                                    .metadata
+                                                    .as_ref()
+                                                    .unwrap()
+                                                    .message_id
+                                                    .clone(),
+                                            })
+                                            .await
+                                            .map_err(|err| {
+                                                std::io::Error::new(
+                                                    std::io::ErrorKind::Other,
+                                                    err.to_string(),
+                                                )
+                                            })?;
+
+                                        secured_conn.send_code(SMTPReplyCode::Code250)?
+                                    }
                                     Err(error) => {
                                         log::error!("couldn't write to queue: {}", error);
                                         secured_conn.send_code(SMTPReplyCode::Code554)?
