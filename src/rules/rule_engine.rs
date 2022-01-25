@@ -14,9 +14,10 @@
  * this program. If not, see https://www.gnu.org/licenses/.
  *
  **/
-use crate::config::log::RULES;
+use crate::config::log_channel::RULES;
+use crate::mime::mail::{BodyType, Mail};
 use crate::model::envelop::Envelop;
-use crate::model::mail::MailContext;
+use crate::model::mail::{MailContext, MessageMetadata};
 use crate::rules::address::Address;
 use crate::rules::obj::Object;
 use crate::rules::operation_queue::{Operation, OperationQueue};
@@ -67,22 +68,25 @@ impl<'a> RuleEngine<'a> {
     pub(crate) fn new(config: &crate::config::server_config::ServerConfig) -> Self {
         let mut scope = Scope::new();
         scope
+            // stage variables.
             .push("connect", IpAddr::V4(Ipv4Addr::UNSPECIFIED))
             .push("port", 0)
             .push("helo", "")
             .push("mail", Address::default())
             .push("rcpt", Address::default())
             .push("rcpts", HashSet::<Address>::new())
-            .push("data", "")
+            .push("data", Mail::default())
+            // rule engine's internals.
             .push("__OPERATION_QUEUE", OperationQueue::default())
             .push("__stage", "")
             .push("__rules", Array::new())
-            .push("__init", true)
+            .push("__init", false)
+            // useful data.
             .push("date", "")
             .push("time", "")
-            .push("msg_id", "")
             .push("connection_timestamp", std::time::SystemTime::now())
-            .push("mail_timestamp", None::<std::time::SystemTime>)
+            .push("metadata", None::<MessageMetadata>)
+            // configuration variables.
             .push("addr", config.server.addr)
             .push("logs_file", config.log.file.clone())
             .push("spool_dir", config.smtp.spool_dir.clone());
@@ -91,13 +95,14 @@ impl<'a> RuleEngine<'a> {
     }
 
     /// add data to the scope of the engine.
-    pub(crate) fn add_data<T>(&mut self, name: &'a str, data: T)
+    pub(crate) fn add_data<T>(&mut self, name: &'a str, data: T) -> &mut Self
     where
         // TODO: find a way to remove the static.
         // maybe create a getter, engine.scope().push(n, v) ?
         T: Clone + Send + Sync + 'static,
     {
         self.scope.set_or_push(name, data);
+        self
     }
 
     /// fetch data from the scope, cloning the variable in the process.
@@ -117,7 +122,7 @@ impl<'a> RuleEngine<'a> {
         log::debug!(target: RULES, "[{}] evaluating rules.", stage);
 
         // updating the internal __stage variable, so that the rhai context
-        // knows what rules to execute
+        // knows what rules to execute.
         self.scope.set_value("__stage", stage.to_string());
 
         // injecting date and time variables.
@@ -169,7 +174,6 @@ impl<'a> RuleEngine<'a> {
     pub(crate) fn execute_operation_queue(
         &mut self,
         ctx: &MailContext,
-        msg_id: &str,
     ) -> Result<(), Box<dyn Error>> {
         for op in self
             .scope
@@ -179,13 +183,13 @@ impl<'a> RuleEngine<'a> {
             })?
             .into_iter()
         {
-            log::info!(target: RULES, "executing heavy operation: {:?}", op);
+            log::debug!(target: RULES, "executing heavy operation: {:?}", op);
             match op {
                 Operation::Block(path) => {
                     let mut path = std::path::PathBuf::from_str(&path)?;
                     std::fs::create_dir_all(&path)?;
 
-                    path.push(msg_id);
+                    path.push(&ctx.metadata.as_ref().unwrap().message_id);
                     path.set_extension("json");
 
                     let mut file = std::fs::OpenOptions::new()
@@ -203,22 +207,27 @@ impl<'a> RuleEngine<'a> {
     }
 
     /// fetch the whole envelop (possibly) mutated by the user's rules.
-    pub(crate) fn get_scoped_envelop(&self) -> Option<Envelop> {
-        Some(Envelop {
-            helo: self.scope.get_value::<String>("helo")?,
-            mail_from: self.scope.get_value::<Address>("mail")?,
-            rcpt: self.scope.get_value::<HashSet<Address>>("rcpts")?,
-        })
+    pub(crate) fn get_scoped_envelop(&self) -> Option<(Envelop, Option<MessageMetadata>, Mail)> {
+        Some((
+            Envelop {
+                helo: self.scope.get_value::<String>("helo")?,
+                mail_from: self.scope.get_value::<Address>("mail")?,
+                rcpt: self.scope.get_value::<HashSet<Address>>("rcpts")?,
+            },
+            self.scope
+                .get_value::<Option<MessageMetadata>>("metadata")?,
+            self.scope.get_value::<Mail>("data")?,
+        ))
     }
 
-    /// clears mail_from, mail_timestamp, rcpt, rcpts & data values from the scope.
+    /// clears mail_from, metadata, rcpt, rcpts & data values from the scope.
     pub(crate) fn reset(&mut self) {
         self.scope
             .push("mail", Address::default())
-            .push("mail_timestamp", None::<std::time::SystemTime>)
+            .push("metadata", None::<MessageMetadata>)
             .push("rcpt", Address::default())
             .push("rcpts", HashSet::<Address>::new())
-            .push("data", "");
+            .push("data", Mail::default());
     }
 }
 
@@ -242,7 +251,7 @@ pub struct RhaiEngine<U: Users> {
     /// FIXME: remove RwLock, objects are immutable.
     pub(super) objects: Arc<RwLock<BTreeMap<String, Object>>>,
 
-    /// system user cache, used for retreiving user information. (used in vsl.USER_EXISTS for example)
+    /// system user cache, used for retrieving user information. (used in vsl.USER_EXISTS for example)
     pub(super) users: Mutex<U>,
 }
 
@@ -265,20 +274,93 @@ impl<U: Users> RhaiEngine<U> {
         .register_fn("to_string", |addr: &mut IpAddr| addr.to_string())
         .register_fn("to_debug", |addr: &mut IpAddr| format!("{:?}", addr))
 
-        // local_part + "@" + domain) = full.
+        // local_part + "@" + domain = full.
         .register_get("full", |addr: &mut Address| addr.full().to_string())
         .register_get("local_part", |addr: &mut Address| addr.local_part().to_string())
         .register_get("domain", |addr: &mut Address| addr.domain().to_string())
 
+        // metadata of the email.
+        .register_type::<Option<MessageMetadata>>()
+        .register_get_result("timestamp", |metadata: &mut Option<MessageMetadata>| match metadata {
+            Some(metadata) => Ok(metadata.timestamp),
+            None => Err("metadata are not available in the current stage".into())
+        })
+        .register_get_result("message_id", |metadata: &mut Option<MessageMetadata>| match metadata {
+            Some(metadata) => Ok(metadata.message_id.clone()),
+            None => Err("metadata are not available in the current stage".into())
+        })
+        .register_get_result("retry", |metadata: &mut Option<MessageMetadata>| match metadata {
+            Some(metadata) => Ok(metadata.retry as u64),
+            None => Err("metadata are not available in the current stage".into())
+        })
+        .register_fn("to_string", |metadata: &mut Option<MessageMetadata>| format!("{:?}", metadata))
+        .register_fn("to_debug", |metadata: &mut Option<MessageMetadata>| format!("{:?}", metadata))
+        .register_set_result("resolver", |metadata: &mut Option<MessageMetadata>, resolver: String| match metadata {
+            Some(metadata) => {
+                metadata.resolver = resolver;
+                Ok(())
+            },
+            None => Err("metadata are not available in the current stage".into())
+        })
+
+        // exposed structure used to read & rewrite the incoming email's content.
+        .register_type::<Mail>()
+        .register_get("headers", |mail: &mut Mail| mail.headers.clone())
+        .register_get("body", |mail: &mut Mail| mail.body.clone())
+        .register_result_fn  ("rewrite_from", |mail: &mut Mail, value: &str| {
+            if mail.body == BodyType::Undefined {
+                Err("failed to execute 'RW_MAIL': body is undefined".into())
+            } else {
+                mail.rewrite_from(value);
+                Ok(())
+            }
+        })
+        .register_result_fn  ("rewrite_rcpt", |mail: &mut Mail, old: &str, new: &str| {
+            if mail.body == BodyType::Undefined {
+                Err("failed to execute 'RW_RCPT': body is undefined".into())
+            } else {
+                mail.rewrite_rcpt(old, new);
+                Ok(())
+            }
+        })
+        .register_result_fn  ("add_rcpt", |mail: &mut Mail, new: &str| {
+            if mail.body == BodyType::Undefined {
+                Err("failed to execute 'ADD_RCPT': body is undefined".into())
+            } else {
+                mail.add_rcpt(new);
+                Ok(())
+            }
+        })
+        .register_result_fn  ("delete_rcpt", |mail: &mut Mail, old: &str| {
+            if mail.body == BodyType::Undefined {
+                Err("failed to execute 'DEL_RCPT': body is undefined".into())
+            } else {
+                mail.delete_rcpt(old);
+                Ok(())
+            }
+        })
+
         // the operation queue is used to defer actions.
         .register_type::<OperationQueue>()
+
+        // time display.
         .register_type::<std::time::SystemTime>()
+        .register_fn("to_string", |time: &mut std::time::SystemTime| format!("{}",
+            time.duration_since(std::time::SystemTime::UNIX_EPOCH)
+                .unwrap_or(std::time::Duration::ZERO)
+                .as_secs()
+        ))
+        .register_fn("to_debug", |time: &mut std::time::SystemTime| format!("{:?}",
+            time.duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap_or(std::time::Duration::ZERO)
+            .as_secs()
+        ))
 
         // adding an Address hash set as a custom type.
         // used to easily manipulate the rcpt container.
         .register_iterator::<HashSet<Address>>()
         .register_iterator::<Vec<String>>()
-
+        .register_fn("insert", <HashSet<Address>>::insert)
         // extract all users / domains from the rcpt set.
         .register_get("local_part", |set: &mut HashSet<Address>| -> Vec<String> {
             set.iter().map(|addr| addr.local_part().to_string()).collect()
@@ -286,8 +368,6 @@ impl<U: Users> RhaiEngine<U> {
         .register_get("domain", |set: &mut HashSet<Address>| -> Vec<String> {
             set.iter().map(|addr| addr.domain().to_string()).collect()
         })
-
-        .register_fn("insert", <HashSet<Address>>::insert)
 
         // added an overload to insert an address using a string.
         .register_result_fn("insert", |set: &mut HashSet::<Address>, value: String| {
@@ -325,7 +405,7 @@ impl<U: Users> RhaiEngine<U> {
             }
         })
 
-        // added an overload to remove an address using a string.
+        // added an overload to replace an address using a string.
         .register_result_fn("replace", |set: &mut HashSet::<Address>, to_replace: String, value: String| {
             let to_replace = match Address::new(&to_replace) {
                 Ok(addr) => addr,
@@ -354,7 +434,7 @@ impl<U: Users> RhaiEngine<U> {
         // eval is not authorized.
         .disable_symbol("eval")
 
-        // `rule $when$ $name$ #{}` container syntax.
+        // `rule $when$ $name$ #{expr}` container syntax.
         .register_custom_syntax_raw(
             "rule",
             |symbols, look_ahead| match symbols.len() {
@@ -362,13 +442,13 @@ impl<U: Users> RhaiEngine<U> {
                 1 => Ok(Some("$ident$".into())),
                 // when the rule will be executed ...
                 2 => match symbols[1].as_str() {
-                    "connect" | "helo" | "mail" | "rcpt" | "preq" => {
+                    "connect" | "helo" | "mail" | "rcpt" | "preq" | "postq" => {
                         Ok(Some("$string$".into()))
                     }
                     entry => Err(ParseError(
                         Box::new(ParseErrorType::BadInput(LexError::ImproperSymbol(
                             entry.into(),
-                            format!("Improper rule stage '{}'. Must be connect, helo, mail, rcpt or preq.", entry),
+                            format!("Improper rule stage '{}'. Must be connect, helo, mail, rcpt, preq or postq.", entry),
                         ))),
                         Position::NONE,
                     )),
@@ -389,7 +469,7 @@ impl<U: Users> RhaiEngine<U> {
             },
             true,
             move |context, input| {
-                let when = input[0].get_variable_name().unwrap().to_string();
+                let when = input[0].get_string_value().unwrap().to_string();
                 let name = input[1].get_literal_value::<ImmutableString>().unwrap();
                 let map = &input[2];
 
@@ -462,7 +542,7 @@ impl<U: Users> RhaiEngine<U> {
             },
             true,
             move |context, input| {
-                let var_type = input[0].get_variable_name().unwrap().to_string();
+                let var_type = input[0].get_string_value().unwrap().to_string();
                 let var_name: String;
 
                 // FIXME: refactor this expression.
@@ -471,7 +551,7 @@ impl<U: Users> RhaiEngine<U> {
                 let object = match var_type.as_str() {
                     "file" => {
 
-                        let content_type = input[2].get_variable_name().unwrap();
+                        let content_type = input[2].get_string_value().unwrap();
                         var_name = input[3].get_literal_value::<ImmutableString>().unwrap().to_string();
                         let object = context.eval_expression_tree(&input[4])?;
 
@@ -525,7 +605,7 @@ impl<U: Users> RhaiEngine<U> {
                 // we inject objects only once in Rust's scope.
                 if let Some(false) = context.scope_mut().get_value::<bool>("__init") {
                     match Object::from(&object) {
-                        // write is called once at initialisation, no need to check the result.
+                        // write is called once at initialization, no need to check the result.
                         Ok(rust_var) => shared_obj.write()
                             .unwrap()
                             .insert(var_name.clone(), rust_var),
@@ -612,7 +692,7 @@ impl RhaiEngine<users::UsersCache> {
 #[cfg(test)]
 impl RhaiEngine<users::mock::MockUsers> {
     /// creates a new instance of the rule engine, used for tests.
-    /// allow unused is () becuase this new static method is
+    /// allow unused is () because this new static method is
     /// for tests only.
     pub(super) fn new(
         src_path: &str,
@@ -659,7 +739,7 @@ lazy_static::lazy_static! {
         .push("mail", Address::default())
         .push("rcpt", Address::default())
         .push("rcpts", HashSet::<Address>::new())
-        .push("data", "")
+        .push("data", Mail::default())
 
         // rule engine's internals.
         .push("__OPERATION_QUEUE", OperationQueue::default())
@@ -671,7 +751,7 @@ lazy_static::lazy_static! {
         .push("date", "")
         .push("time", "")
         .push("connection_timestamp", std::time::SystemTime::now())
-        .push("mail_timestamp", None::<std::time::SystemTime>)
+        .push("metadata", None::<MessageMetadata>)
 
         // configuration variables.
         .push("addr", Vec::<String>::new())
@@ -719,7 +799,7 @@ lazy_static::lazy_static! {
 static mut RULES_PATH: &str = "./config/rules";
 static INIT_RULES_PATH: std::sync::Once = std::sync::Once::new();
 
-/// initialise the default rule path.
+/// initialize the default rule path.
 /// this is mainly used for test purposes, and does not
 /// need to be used most of the time.
 pub fn set_rules_path(src: &'static str) {
@@ -762,7 +842,7 @@ pub fn init(src: &'static str) -> Result<(), Box<dyn Error>> {
 }
 
 #[cfg(not(test))]
-/// aquire a ref of the engine for production code.
+/// acquire a ref of the engine for production code.
 pub(super) fn acquire_engine() -> &'static RhaiEngine<users::UsersCache> {
     &RHAI_ENGINE
 }
@@ -787,6 +867,7 @@ pub(crate) fn user_exists(name: &str) -> bool {
     }
 }
 
+/// using the engine's instance, try to get a specific user.
 pub(crate) fn get_user_by_name(name: &str) -> Option<Arc<users::User>> {
     match acquire_engine().users.lock() {
         Ok(users) => users.get_user_by_name(name),
@@ -795,4 +876,42 @@ pub(crate) fn get_user_by_name(name: &str) -> Option<Arc<users::User>> {
             None
         }
     }
+}
+
+// NOTE: hardcoded here because not defined in the libc crate.
+const HOST_BUF_SIZE: usize = 1024;
+const SERV_BUF_SIZE: usize = 32;
+
+/// lookup a hostname from a socket using libc.
+pub(crate) fn reverse_lookup(socket: &std::net::SocketAddr) -> Result<String, std::io::Error> {
+    // convert the socket into socket2's socket to access the raw pointer.
+    // TODO: find a way to remove socket2 dependency.
+    let socket: socket2::SockAddr = (*socket).into();
+
+    let mut c_host = [0_i8; HOST_BUF_SIZE];
+    let mut c_service = [0_i8; SERV_BUF_SIZE];
+
+    unsafe {
+        libc::getnameinfo(
+            socket.as_ptr(),
+            socket.len(),
+            c_host.as_mut_ptr(),
+            c_host.len() as _,
+            c_service.as_mut_ptr(),
+            c_service.len() as _,
+            0,
+        );
+    }
+
+    let raw_host = unsafe { std::ffi::CStr::from_ptr(c_host.as_ptr()) };
+
+    let host = match std::str::from_utf8(raw_host.to_bytes()) {
+        Ok(name) => Ok(name.to_owned()),
+        Err(_) => Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Host UTF8 parsing failed",
+        )),
+    }?;
+
+    Ok(host)
 }

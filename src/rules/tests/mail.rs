@@ -2,27 +2,17 @@
 pub mod test {
     use crate::{
         config::server_config::ServerConfig,
-        model::mail::MailContext,
+        model::mail::{Body, MailContext},
         resolver::DataEndResolver,
         rules::{address::Address, tests::helpers::run_integration_engine_test},
         smtp::code::SMTPReplyCode,
+        test_helpers::DefaultResolverTest,
     };
-
-    struct Test;
-
-    #[async_trait::async_trait]
-    impl DataEndResolver for Test {
-        async fn on_data_end(
-            _: &ServerConfig,
-            _: &MailContext,
-        ) -> Result<SMTPReplyCode, std::io::Error> {
-            Ok(SMTPReplyCode::Code250)
-        }
-    }
 
     #[tokio::test]
     async fn test_mail_by_user() {
-        assert!(run_integration_engine_test::<Test>(
+        assert!(run_integration_engine_test::<DefaultResolverTest>(
+            DefaultResolverTest {},
             "./src/rules/tests/rules/mail/mail.vsl",
             "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
@@ -40,7 +30,8 @@ pub mod test {
         .await
         .is_ok());
 
-        assert!(run_integration_engine_test::<Test>(
+        assert!(run_integration_engine_test::<DefaultResolverTest>(
+            DefaultResolverTest {},
             "./src/rules/tests/rules/mail/mail.vsl",
             "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
@@ -61,7 +52,8 @@ pub mod test {
 
     #[tokio::test]
     async fn test_mail_by_fqdn() {
-        assert!(run_integration_engine_test::<Test>(
+        assert!(run_integration_engine_test::<DefaultResolverTest>(
+            DefaultResolverTest {},
             "./src/rules/tests/rules/mail/mail.vsl",
             "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
@@ -79,7 +71,8 @@ pub mod test {
         .await
         .is_ok());
 
-        assert!(run_integration_engine_test::<Test>(
+        assert!(run_integration_engine_test::<DefaultResolverTest>(
+            DefaultResolverTest {},
             "./src/rules/tests/rules/mail/mail.vsl",
             "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
@@ -100,7 +93,8 @@ pub mod test {
 
     #[tokio::test]
     async fn test_mail_by_address() {
-        assert!(run_integration_engine_test::<Test>(
+        assert!(run_integration_engine_test::<DefaultResolverTest>(
+            DefaultResolverTest {},
             "./src/rules/tests/rules/mail/mail.vsl",
             "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
@@ -118,7 +112,8 @@ pub mod test {
         .await
         .is_ok());
 
-        assert!(run_integration_engine_test::<Test>(
+        assert!(run_integration_engine_test::<DefaultResolverTest>(
+            DefaultResolverTest {},
             "./src/rules/tests/rules/mail/mail.vsl",
             "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
@@ -140,40 +135,61 @@ pub mod test {
         .is_ok());
     }
 
-    struct TestRewriten;
+    struct TestRewritten;
 
     #[async_trait::async_trait]
-    impl DataEndResolver for TestRewriten {
+    impl DataEndResolver for TestRewritten {
         async fn on_data_end(
+            &mut self,
             _: &ServerConfig,
             ctx: &MailContext,
         ) -> Result<SMTPReplyCode, std::io::Error> {
             println!("{:?}", ctx.envelop.rcpt);
             println!("{:?}", ctx.envelop.mail_from);
 
+            // envelop should have been rewritten.
             assert!(ctx
                 .envelop
                 .rcpt
                 .get(&Address::new("client@other.com").unwrap())
                 .is_some());
             assert_eq!(ctx.envelop.mail_from.full(), "no-reply@viridit.com");
-
             assert_eq!(ctx.envelop.rcpt.len(), 1);
+
+            // the body of the email should have also been rewritten.
+            assert!(if let Body::Parsed(body) = &ctx.body {
+                if let Some((_, from)) = body.headers.iter().find(|(header, _)| header == "from") {
+                    from.as_str() == "no-reply@viridit.com"
+                } else {
+                    false
+                }
+            } else {
+                false
+            });
+
             Ok(SMTPReplyCode::Code250)
         }
     }
 
     #[tokio::test]
     async fn test_mail_rewrite() {
-        assert!(run_integration_engine_test::<TestRewriten>(
+        assert!(run_integration_engine_test::<TestRewritten>(
+            TestRewritten {},
             "./src/rules/tests/rules/mail/rw_mail.vsl",
             "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             [
                 "HELO foobar\r\n",
-                "MAIL FROM:<steven@personnal.fr>\r\n",
+                "MAIL FROM:<steven@personal.fr>\r\n",
                 "RCPT TO:<client@other.com>\r\n",
                 "DATA\r\n",
+                "from: steven personal <steven@personal.fr>\r\n",
+                "Subject: text content\r\n",
+                "To: client@other.com\r\n",
+                "Message-ID: <xxx@localhost.com>\r\n",
+                "Date: Tue, 30 Nov 2021 20:54:27 +0100\r\n",
+                "\r\n",
+                "A basic email.\r\n",
                 ".\r\n",
                 "QUIT\r\n",
             ]

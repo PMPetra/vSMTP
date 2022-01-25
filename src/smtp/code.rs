@@ -15,6 +15,7 @@
  *
 **/
 
+// TODO: EnhancedStatusCodes,
 // see https://datatracker.ietf.org/doc/html/rfc2034
 
 /// 2yz  Positive Completion reply
@@ -88,7 +89,7 @@ pub enum SMTPReplyCode {
     /// bad sequence of commands
     Code503,
     /// command parameter is not implemented
-    // Code504,
+    Code504,
     /// server does not accept mail
     // Code521,
     /// encryption Needed

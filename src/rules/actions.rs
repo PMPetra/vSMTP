@@ -14,21 +14,12 @@
  * this program. If not, see https://www.gnu.org/licenses/.
  *
 **/
-use crate::model::{
-    envelop::Envelop,
-    mail::{ConnectionData, MailContext},
-};
+use crate::model::{envelop::Envelop, mail::MailContext};
 
 use crate::rules::{
     obj::Object,
     operation_queue::{Operation, OperationQueue},
     rule_engine::{acquire_engine, user_exists, Status},
-};
-
-use std::{
-    io::Write,
-    net::{IpAddr, Ipv4Addr, Ipv6Addr},
-    str::FromStr,
 };
 
 use lettre::{Message, SmtpTransport, Transport};
@@ -40,9 +31,14 @@ use super::address::Address;
 #[allow(dead_code)]
 #[export_module]
 pub(super) mod vsl {
-    use std::{collections::HashSet, net::SocketAddr};
+    use std::collections::HashSet;
 
-    use crate::{config::log::RULES, rules::address::Address};
+    use crate::{
+        config::log_channel::RULES,
+        mime::mail::Mail,
+        model::mail::{Body, MessageMetadata},
+        rules::address::Address,
+    };
 
     /// enqueue a block operation on the queue.
     pub fn op_block(queue: &mut OperationQueue, path: &str) {
@@ -98,9 +94,11 @@ pub(super) mod vsl {
                 // the only writer on "objects" is called and unlocked
                 // at the start of the server, we can unwrap here.
                 let path = match acquire_engine().objects.read().unwrap().get(path) {
-                    // from_str is unfailable, we can unwrap.
-                    Some(Object::Var(p)) => std::path::PathBuf::from_str(p.as_str()).unwrap(),
-                    _ => std::path::PathBuf::from_str(path).unwrap(),
+                    // from_str is infallible, we can unwrap.
+                    Some(Object::Var(p)) => {
+                        <std::path::PathBuf as std::str::FromStr>::from_str(p.as_str()).unwrap()
+                    }
+                    _ => <std::path::PathBuf as std::str::FromStr>::from_str(path).unwrap(),
                 };
 
                 match std::fs::OpenOptions::new()
@@ -111,13 +109,12 @@ pub(super) mod vsl {
                     Ok(file) => {
                         let mut writer = std::io::LineWriter::new(file);
 
-                        writer
-                            .write_all(message.as_bytes())
-                            .map_err::<Box<EvalAltResult>, _>(|_| {
-                                format!("could not log to '{:?}'.", path).into()
-                            })?;
-                        writer
-                            .write_all(b"\n")
+                        std::io::Write::write_all(&mut writer, message.as_bytes()).map_err::<Box<
+                            EvalAltResult,
+                        >, _>(
+                            |_| format!("could not log to '{:?}'.", path).into(),
+                        )?;
+                        std::io::Write::write_all(&mut writer, b"\n")
                             .map_err(|_| format!("could not log to '{:?}'.", path).into())
                     }
                     Err(error) => Err(format!(
@@ -134,22 +131,24 @@ pub(super) mod vsl {
     //       could it be added to the operation queue ?
     /// write the email to a specified file.
     #[rhai_fn(name = "__WRITE", return_raw)]
-    pub fn write_mail(data: &str, path: &str) -> Result<(), Box<EvalAltResult>> {
-        if data.is_empty() {
+    pub fn write_mail(data: Mail, path: &str) -> Result<(), Box<EvalAltResult>> {
+        if data.headers.is_empty() {
             return Err("the WRITE action can only be called after or in the 'preq' stage.".into());
         }
 
-        // from_str is unfailable, we can unwrap.
-        let path = std::path::PathBuf::from_str(path).unwrap();
+        // from_str is infallible, we can unwrap.
+        let path = <std::path::PathBuf as std::str::FromStr>::from_str(path).unwrap();
 
         match std::fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(&path)
         {
-            Ok(mut file) => file
-                .write_all(data.as_bytes())
-                .map_err(|_| format!("could not write email to '{:?}'.", path).into()),
+            Ok(mut file) => {
+                let (headers, body) = data.to_raw();
+                std::io::Write::write_all(&mut file, format!("{}\n{}", headers, body).as_bytes())
+                    .map_err(|_| format!("could not write email to '{:?}'.", path).into())
+            }
             Err(error) => Err(format!(
                 "'{:?}' is not a valid path to write the email to: {:#?}",
                 path, error
@@ -164,16 +163,12 @@ pub(super) mod vsl {
     /// for example, dumping during the rcpt stage will leave the data
     /// field empty.
     #[rhai_fn(name = "__DUMP", return_raw)]
-    #[allow(clippy::too_many_arguments)]
     pub fn dump(
-        connect: IpAddr,
-        port: u16,
         helo: &str,
         mail: Address,
         rcpt: HashSet<Address>,
-        data: &str,
-        connection_timestamp: std::time::SystemTime,
-        mail_timestamp: Option<std::time::SystemTime>,
+        data: Mail,
+        metadata: Option<MessageMetadata>,
         path: &str,
     ) -> Result<(), Box<EvalAltResult>> {
         if let Err(error) = std::fs::create_dir_all(path) {
@@ -182,8 +177,16 @@ pub(super) mod vsl {
 
         let mut file = match std::fs::OpenOptions::new().write(true).create(true).open({
             // Error is of type Infallible, we can unwrap.
-            let mut path = std::path::PathBuf::from_str(path).unwrap();
-            path.push(crate::mailprocessing::utils::generate_msg_id());
+            let mut path = <std::path::PathBuf as std::str::FromStr>::from_str(path).unwrap();
+            path.push(
+                metadata
+                    .as_ref()
+                    .ok_or_else::<Box<EvalAltResult>, _>(|| {
+                        "could not dump email, metadata has not been received yet.".into()
+                    })?
+                    .message_id
+                    .clone(),
+            );
             path.set_extension("json");
             path
         }) {
@@ -199,13 +202,8 @@ pub(super) mod vsl {
                 mail_from: mail,
                 rcpt,
             },
-            body: data.into(),
-            connection: ConnectionData {
-                peer_addr: SocketAddr::new(connect, port),
-                timestamp: connection_timestamp,
-            },
-
-            timestamp: mail_timestamp,
+            body: Body::Parsed(data.into()),
+            metadata,
         };
 
         std::io::Write::write_all(&mut file, serde_json::to_string(&ctx).unwrap().as_bytes())
@@ -245,6 +243,51 @@ pub(super) mod vsl {
         }
     }
 
+    #[rhai_fn(name = "__R_LOOKUP", return_raw)]
+    /// find an address from an object / string literal ip.
+    pub fn reverse_lookup(object: &str, port: i64) -> Result<String, Box<EvalAltResult>> {
+        use std::net::*;
+
+        match acquire_engine().objects.read().unwrap().get(object) {
+            Some(Object::Ip4(addr)) => crate::rules::rule_engine::reverse_lookup(&SocketAddr::new(
+                IpAddr::V4(*addr),
+                port as u16,
+            ))
+            .map_err(|error| {
+                format!("couldn't process reverse lookup using ipv4: {}", error).into()
+            }),
+
+            Some(Object::Ip6(addr)) => crate::rules::rule_engine::reverse_lookup(&SocketAddr::new(
+                IpAddr::V6(*addr),
+                port as u16,
+            ))
+            .map_err(|error| {
+                format!("couldn't process reverse lookup using ipv6: {}", error).into()
+            }),
+
+            _ => match <SocketAddr as std::str::FromStr>::from_str(&format!("{}:{}", object, port))
+            {
+                Ok(socket) => crate::rules::rule_engine::reverse_lookup(&socket)
+                    .map_err(|error| format!("couldn't process reverse lookup: {}", error).into()),
+                Err(error) => {
+                    Err(format!("couldn't process reverse lookup for {}: {}", object, error).into())
+                }
+            },
+        }
+    }
+
+    #[rhai_fn(name = "__R_LOOKUP", return_raw)]
+    /// find an address from an IpAddr object (connect).
+    pub fn reverse_lookup_from_ip(
+        ip: std::net::IpAddr,
+        port: i64,
+    ) -> Result<String, Box<EvalAltResult>> {
+        crate::rules::rule_engine::reverse_lookup(&std::net::SocketAddr::new(ip, port as u16))
+            .map_err(|error| {
+                format!("couldn't process reverse lookup using ipv4: {}", error).into()
+            })
+    }
+
     #[rhai_fn(name = "==")]
     pub fn eq_status_operator(in1: &mut Status, in2: Status) -> bool {
         *in1 == in2
@@ -256,12 +299,12 @@ pub(super) mod vsl {
     }
 
     /// checks if the object exists and check if it matches against the connect value.
-    pub fn __is_connect(connect: &mut IpAddr, object: &str) -> bool {
+    pub fn __is_connect(connect: &mut std::net::IpAddr, object: &str) -> bool {
         match acquire_engine().objects.read().unwrap().get(object) {
             Some(object) => internal_is_connect(connect, object),
-            None => match Ipv4Addr::from_str(object) {
+            None => match <std::net::Ipv4Addr as std::str::FromStr>::from_str(object) {
                 Ok(ip) => ip == *connect,
-                Err(_) => match Ipv6Addr::from_str(object) {
+                Err(_) => match <std::net::Ipv6Addr as std::str::FromStr>::from_str(object) {
                     Ok(ip) => ip == *connect,
                     Err(_) => {
                         log::error!(
@@ -303,6 +346,15 @@ pub(super) mod vsl {
         }
     }
 
+    /// check if the given object matches one of the incoming recipients.
+    pub fn __contains_rcpt(rcpts: &mut HashSet<Address>, object: &str) -> bool {
+        match acquire_engine().objects.read().unwrap().get(object) {
+            Some(object) => rcpts.iter().any(|rcpt| internal_is_rcpt(rcpt, object)),
+            // TODO: allow for user / domain search with a string.
+            _ => rcpts.iter().any(|rcpt| rcpt.full() == object),
+        }
+    }
+
     /// checks if the given user exists on the system.
     pub fn __user_exists(object: &str) -> bool {
         match acquire_engine().objects.read().unwrap().get(object) {
@@ -315,16 +367,16 @@ pub(super) mod vsl {
 // NOTE: the following functions use pub(super) because they need to be exposed for tests.
 // FIXME: find a way to hide the following function to the parent scope.
 /// checks recursively if the current connect value is matching the object's value.
-pub(super) fn internal_is_connect(connect: &IpAddr, object: &Object) -> bool {
+pub(super) fn internal_is_connect(connect: &std::net::IpAddr, object: &Object) -> bool {
     match object {
         Object::Ip4(ip) => *ip == *connect,
         Object::Ip6(ip) => *ip == *connect,
         Object::Rg4(range) => match connect {
-            IpAddr::V4(ip4) => range.contains(ip4),
+            std::net::IpAddr::V4(ip4) => range.contains(ip4),
             _ => false,
         },
         Object::Rg6(range) => match connect {
-            IpAddr::V6(ip6) => range.contains(ip6),
+            std::net::IpAddr::V6(ip6) => range.contains(ip6),
             _ => false,
         },
         // NOTE: is there a way to get a &str instead of a String here ?

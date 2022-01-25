@@ -9,7 +9,7 @@ cargo lint
 ## Unit test / Integration test
 
 ```sh
-cargo +nightly test
+cargo test
 ```
 
 ## Benchmarking

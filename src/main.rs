@@ -13,50 +13,47 @@
  * You should have received a copy of the GNU General Public License along with
  * this program. If not, see https://www.gnu.org/licenses/.
  *
-**/
+ **/
+use vsmtp::config::get_logger_config;
 use vsmtp::config::server_config::ServerConfig;
-use vsmtp::resolver::MailDirResolver;
+use vsmtp::resolver::maildir_resolver::MailDirResolver;
+use vsmtp::resolver::smtp_resolver::SMTPResolver;
 use vsmtp::rules::rule_engine;
+use vsmtp::server::ServerVSMTP;
+
+#[derive(clap::Parser, Debug)]
+#[clap(about, version, author)]
+struct Args {
+    #[clap(short, long)]
+    config: String,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = clap::App::new("vSMTP")
-        .version(env!("CARGO_PKG_VERSION", "no option provided"))
-        .author("ViridIT https://www.viridit.com")
-        .about("vSMTP : the next-gen MTA")
-        .arg(
-            clap::Arg::with_name("config")
-                .short("-c")
-                .long("--config")
-                .takes_value(true)
-                .default_value("/etc/vsmtp/config.toml"),
-        )
-        .get_matches();
+    let args = <Args as clap::StructOpt>::parse();
+    println!("Loading with configuration: '{}'", args.config);
 
-    let config = args
-        .value_of("config")
-        .expect("clap should provide default value");
-    log::warn!("Loading with configuration: \"{:?}\"", config);
-
-    let config: ServerConfig =
-        toml::from_str(&std::fs::read_to_string(config).expect("cannot read file"))
+    let mut config: ServerConfig =
+        toml::from_str(&std::fs::read_to_string(args.config).expect("cannot read file"))
             .expect("cannot parse config from toml");
+    config.prepare();
+    let config = std::sync::Arc::new(config);
 
-    MailDirResolver::init_spool_folder(&config.smtp.spool_dir)
-        .expect("Failed to initialize the spool directory");
+    log4rs::init_config(get_logger_config(&config)?)?;
 
-    // the leak is needed to pass from &'a str to &'static str
-    // and initialize the rule engine's rule directory.
-    let rules_dir = config.rules.dir.clone();
-    if let Err(error) = rule_engine::init(Box::leak(rules_dir.into_boxed_str())) {
-        // we can't use logs here because it is initialized when building the server.
-        // NOTE: should we remove the log initialization inside the server ?
-        eprintln!("could not initalize the rule engine: {}", error);
-        return Err(error);
-    }
+    rule_engine::init(Box::leak(config.rules.dir.clone().into_boxed_str())).map_err(|error| {
+        log::error!("could not initialize the rule engine: {}", error);
+        error
+    })?;
 
-    let server = config.build::<MailDirResolver>().await;
-
+    let mut server = ServerVSMTP::new(config.clone())
+        .await
+        .expect("Failed to create the server");
     log::warn!("Listening on: {:?}", server.addr());
-    server.listen_and_serve().await
+
+    server
+        .with_resolver("maildir", MailDirResolver::default())
+        .with_resolver("smtp", SMTPResolver::default())
+        .listen_and_serve()
+        .await
 }

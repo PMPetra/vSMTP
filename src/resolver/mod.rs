@@ -14,19 +14,23 @@
  * this program. If not, see https://www.gnu.org/licenses/.
  *
 **/
-pub mod io_service;
-pub mod mail_receiver;
+use crate::{
+    config::server_config::ServerConfig, model::mail::MailContext, smtp::code::SMTPReplyCode,
+};
 
-pub mod utils {
-    pub fn generate_msg_id() -> String {
-        format!(
-            "{}_{:?}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                // TODO: remove unwrap.
-                .unwrap()
-                .as_millis(),
-            std::thread::current().id()
-        )
-    }
+pub mod maildir_resolver;
+pub mod smtp_resolver;
+
+#[async_trait::async_trait]
+pub trait DataEndResolver {
+    async fn on_data_end(
+        &mut self,
+        config: &ServerConfig,
+        mail: &MailContext,
+    ) -> std::io::Result<SMTPReplyCode>;
+}
+
+#[async_trait::async_trait]
+pub trait Resolver {
+    async fn deliver(&self, config: &ServerConfig, mail: &MailContext) -> std::io::Result<()>;
 }

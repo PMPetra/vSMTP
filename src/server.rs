@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 /**
  * vSMTP mail transfer agent
  * Copyright (C) 2021 viridIT SAS
@@ -14,262 +16,49 @@
  * this program. If not, see https://www.gnu.org/licenses/.
  *
 **/
-use crate::config::default::DEFAULT_CONFIG;
-use crate::config::server_config::{ServerConfig, TlsSecurityLevel};
-use crate::mailprocessing::mail_receiver::MailReceiver;
-use crate::resolver::DataEndResolver;
+use crate::{
+    config::server_config::{ServerConfig, TlsSecurityLevel},
+    connection::Connection,
+    io_service::IoService,
+    processes::ProcessMessage,
+    queue::Queue,
+    resolver::Resolver,
+    smtp::code::SMTPReplyCode,
+    tls::get_rustls_config,
+    transaction::Transaction,
+};
 
-pub struct ServerVSMTP<R>
-where
-    R: DataEndResolver,
-{
+pub struct ServerVSMTP {
+    resolvers: HashMap<String, Box<dyn Resolver + Send + Sync>>,
     listener: tokio::net::TcpListener,
     tls_config: Option<std::sync::Arc<rustls::ServerConfig>>,
     config: std::sync::Arc<ServerConfig>,
-    _phantom: std::marker::PhantomData<R>,
 }
 
-impl<R> ServerVSMTP<R>
-where
-    R: DataEndResolver + std::marker::Send,
-{
+impl ServerVSMTP {
     pub async fn new(
         config: std::sync::Arc<ServerConfig>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        log4rs::init_config(Self::get_logger_config(&config)?)?;
+        // NOTE: Err type is core::convert::Infallible, it's safe to unwrap.
+        let spool_dir =
+            <std::path::PathBuf as std::str::FromStr>::from_str(&config.smtp.spool_dir).unwrap();
+
+        if !spool_dir.exists() {
+            std::fs::DirBuilder::new()
+                .recursive(true)
+                .create(spool_dir)?;
+        }
 
         Ok(Self {
+            resolvers: HashMap::new(),
             listener: tokio::net::TcpListener::bind(&config.server.addr).await?,
             tls_config: if config.tls.security_level == TlsSecurityLevel::None {
                 None
             } else {
-                Some(Self::get_rustls_config(&config))
+                Some(get_rustls_config(&config))
             },
             config,
-            _phantom: std::marker::PhantomData,
         })
-    }
-
-    fn get_logger_config(config: &ServerConfig) -> Result<log4rs::Config, std::io::Error> {
-        use log4rs::*;
-
-        let console = append::console::ConsoleAppender::builder()
-            .encoder(Box::new(encode::pattern::PatternEncoder::new(
-                "{d(%Y-%m-%d %H:%M:%S)} {h({l:<5} {I})} ((line:{L:<3})) $ {m}{n}",
-            )))
-            .build();
-
-        let file = append::file::FileAppender::builder()
-            .encoder(Box::new(encode::pattern::PatternEncoder::new(
-                "{d} - {m}{n}",
-            )))
-            .build(config.log.file.clone())?;
-
-        Config::builder()
-            .appender(config::Appender::builder().build("stdout", Box::new(console)))
-            .appender(config::Appender::builder().build("file", Box::new(file)))
-            .loggers(
-                config
-                    .log
-                    .level
-                    .iter()
-                    .map(|(name, level)| config::Logger::builder().build(name, *level)),
-            )
-            .build(
-                config::Root::builder()
-                    .appender("stdout")
-                    .appender("file")
-                    .build(
-                        *config
-                            .log
-                            .level
-                            .get("default")
-                            .unwrap_or(&log::LevelFilter::Warn),
-                    ),
-            )
-            .map_err(|e| {
-                e.errors().iter().for_each(|e| log::error!("{}", e));
-                std::io::Error::new(std::io::ErrorKind::Other, e)
-            })
-    }
-
-    fn get_cert_from_file(
-        fullchain_path: &str,
-    ) -> Result<Vec<rustls::Certificate>, std::io::Error> {
-        let fullchain_file = std::fs::File::open(&fullchain_path)?;
-        let mut reader = std::io::BufReader::new(fullchain_file);
-        rustls_pemfile::certs(&mut reader).map(|certs| {
-            certs
-                .into_iter()
-                .map(rustls::Certificate)
-                .collect::<Vec<_>>()
-        })
-    }
-
-    fn get_signing_key_from_file(
-        rsa_path: &str,
-    ) -> Result<std::sync::Arc<dyn rustls::sign::SigningKey>, std::io::Error> {
-        let rsa_file = std::fs::File::open(&rsa_path)?;
-        let mut reader = std::io::BufReader::new(rsa_file);
-
-        let private_keys_rsa = rustls_pemfile::read_one(&mut reader)?
-            .into_iter()
-            .map(|i| match i {
-                rustls_pemfile::Item::X509Certificate(i) => rustls::PrivateKey(i),
-                rustls_pemfile::Item::RSAKey(i) => rustls::PrivateKey(i),
-                rustls_pemfile::Item::PKCS8Key(i) => rustls::PrivateKey(i),
-            })
-            .collect::<Vec<_>>();
-
-        if let Some(key) = private_keys_rsa.first() {
-            rustls::sign::any_supported_type(key).map_err(|_| {
-                std::io::Error::new(std::io::ErrorKind::Other, "cannot parse signing key")
-            })
-        } else {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "private key missing",
-            ))
-        }
-    }
-
-    fn get_rustls_config(config: &ServerConfig) -> std::sync::Arc<rustls::ServerConfig> {
-        let capath_if_missing_from_both = String::default();
-        let capath = config
-            .tls
-            .capath
-            .as_ref()
-            .or_else(|| DEFAULT_CONFIG.tls.capath.as_ref())
-            .unwrap_or(&capath_if_missing_from_both);
-
-        let mut sni_resolver = rustls::server::ResolvesServerCertUsingSni::new();
-
-        if let Some(x) = config.tls.sni_maps.as_ref() {
-            x.iter()
-                .filter_map(|sni| {
-                    Some((
-                        sni.domain.clone(),
-                        rustls::sign::CertifiedKey {
-                            cert: match Self::get_cert_from_file(
-                                &sni.fullchain
-                                    .replace("{capath}", capath)
-                                    .replace("{domain}", &sni.domain),
-                            ) {
-                                Ok(cert) => cert,
-                                Err(e) => {
-                                    log::error!("failed to get certificates: {}", e);
-                                    return None;
-                                }
-                            },
-                            key: match Self::get_signing_key_from_file(
-                                &sni.private_key
-                                    .replace("{capath}", capath)
-                                    .replace("{domain}", &sni.domain),
-                            ) {
-                                Ok(key) => key,
-                                Err(e) => {
-                                    log::error!("failed to get signing key: {}", e);
-                                    return None;
-                                }
-                            },
-                            // TODO:
-                            ocsp: None,
-                            sct_list: None,
-                        },
-                    ))
-                })
-                .for_each(|(domain, ck)| {
-                    sni_resolver
-                        .add(&domain, ck)
-                        .expect("Failed to add sni resolver")
-                })
-        }
-
-        struct CertResolver {
-            sni_resolver: rustls::server::ResolvesServerCertUsingSni,
-            cert: Option<std::sync::Arc<rustls::sign::CertifiedKey>>,
-        }
-
-        impl rustls::server::ResolvesServerCert for CertResolver {
-            fn resolve(
-                &self,
-                client_hello: rustls::server::ClientHello,
-            ) -> Option<std::sync::Arc<rustls::sign::CertifiedKey>> {
-                self.sni_resolver
-                    .resolve(client_hello)
-                    .or_else(|| self.cert.clone())
-            }
-        }
-
-        struct TlsLogger;
-        impl rustls::KeyLog for TlsLogger {
-            fn log(&self, label: &str, client_random: &[u8], secret: &[u8]) {
-                log::trace!("{} {:?} {:?}", label, client_random, secret);
-            }
-        }
-
-        let mut out = rustls::ServerConfig::builder()
-            .with_cipher_suites(rustls::ALL_CIPHER_SUITES)
-            .with_kx_groups(&rustls::ALL_KX_GROUPS)
-            .with_protocol_versions(rustls::ALL_VERSIONS)
-            .expect("inconsistent cipher-suites/versions specified")
-            .with_client_cert_verifier(rustls::server::NoClientAuth::new())
-            .with_cert_resolver(std::sync::Arc::new(CertResolver {
-                sni_resolver,
-                cert: config
-                    .tls
-                    .fullchain
-                    .as_ref()
-                    .or_else(|| DEFAULT_CONFIG.tls.fullchain.as_ref())
-                    .and_then(|fullchain| {
-                        config
-                            .tls
-                            .private_key
-                            .as_ref()
-                            .or_else(|| DEFAULT_CONFIG.tls.private_key.as_ref())
-                            .map(|private_key| (fullchain, private_key))
-                    })
-                    .and_then(|(fullchain, private_key)| {
-                        Some((
-                            match Self::get_cert_from_file(
-                                &fullchain
-                                    .replace("{capath}", capath)
-                                    .replace("{domain}", &config.domain),
-                            ) {
-                                Ok(cert) => cert,
-                                Err(e) => {
-                                    log::error!("failed to get certificates: {}", e);
-                                    return None;
-                                }
-                            },
-                            match Self::get_signing_key_from_file(
-                                &private_key
-                                    .replace("{capath}", capath)
-                                    .replace("{domain}", &config.domain),
-                            ) {
-                                Ok(key) => key,
-                                Err(e) => {
-                                    log::error!("failed to get signing key: {}", e);
-                                    return None;
-                                }
-                            },
-                        ))
-                    })
-                    .map(|(cert, key)| {
-                        std::sync::Arc::new(rustls::sign::CertifiedKey {
-                            cert,
-                            key,
-                            // TODO:
-                            ocsp: None,
-                            sct_list: None,
-                        })
-                    }),
-            }));
-
-        out.ignore_client_order = config.tls.preempt_cipherlist;
-        out.key_log = std::sync::Arc::new(TlsLogger {});
-
-        std::sync::Arc::new(out)
     }
 
     pub fn addr(&self) -> std::net::SocketAddr {
@@ -278,52 +67,260 @@ where
             .expect("cannot retrieve local address")
     }
 
-    fn handle_client(
-        &self,
-        stream: std::net::TcpStream,
-        client_addr: std::net::SocketAddr,
-    ) -> Result<(), std::io::Error> {
-        log::warn!("Connection from: {}", client_addr);
-        let tls_config = self.tls_config.as_ref().map(std::sync::Arc::clone);
-        let config = self.config.clone();
-
-        stream.set_nonblocking(true)?;
-
-        tokio::spawn(async move {
-            let begin = std::time::SystemTime::now();
-            log::warn!("Handling client: {}", client_addr);
-
-            match MailReceiver::<R>::new(client_addr, tls_config, config)
-                .receive_plain(stream)
-                .await
-            {
-                Ok(_) => log::warn!(
-                    "{{ elapsed: {:?} }} Connection {} closed cleanly",
-                    begin.elapsed(),
-                    client_addr,
-                ),
-                Err(e) => {
-                    log::error!(
-                        "{{ elapsed: {:?} }} Connection {} closed with an error {}",
-                        begin.elapsed(),
-                        client_addr,
-                        e,
-                    )
-                }
-            }
-
-            std::io::Result::Ok(())
-        });
-
-        Ok(())
+    pub fn with_resolver<T>(&mut self, name: &str, resolver: T) -> &mut Self
+    where
+        T: Resolver + Send + Sync + 'static,
+    {
+        self.resolvers.insert(name.to_string(), Box::new(resolver));
+        self
     }
 
-    pub async fn listen_and_serve(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn listen_and_serve(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let delivery_buffer_size = self
+            .config
+            .delivery
+            .queue
+            .get("delivery")
+            .map(|q| q.capacity)
+            .flatten()
+            .unwrap_or(1);
+
+        let (delivery_sender, delivery_receiver) =
+            tokio::sync::mpsc::channel::<ProcessMessage>(delivery_buffer_size);
+
+        let working_buffer_size = self
+            .config
+            .delivery
+            .queue
+            .get("working")
+            .map(|q| q.capacity)
+            .flatten()
+            .unwrap_or(1);
+
+        let (working_sender, working_receiver) =
+            tokio::sync::mpsc::channel::<ProcessMessage>(working_buffer_size);
+
+        let config_deliver = self.config.clone();
+        let resolvers = std::mem::take(&mut self.resolvers);
+        tokio::spawn(async move {
+            let result =
+                crate::processes::delivery::start(resolvers, config_deliver, delivery_receiver)
+                    .await;
+            log::error!("v_deliver ended unexpectedly '{:?}'", result);
+        });
+
+        let config_mime = self.config.clone();
+        tokio::spawn(async move {
+            let result =
+                crate::processes::mime::start(&config_mime, working_receiver, delivery_sender)
+                    .await;
+            log::error!("v_mime ended unexpectedly '{:?}'", result);
+        });
+
+        let working_sender = std::sync::Arc::new(working_sender);
+
         loop {
             match self.listener.accept().await {
-                Ok((stream, client_addr)) => self.handle_client(stream.into_std()?, client_addr)?,
+                Ok((stream, client_addr)) => {
+                    log::warn!("Connection from: {}", client_addr);
+
+                    let mut stream = stream.into_std()?;
+                    stream.set_nonblocking(true)?;
+
+                    let config = self.config.clone();
+                    let tls_config = self.tls_config.as_ref().map(std::sync::Arc::clone);
+
+                    let working_sender = working_sender.clone();
+                    tokio::spawn(async move {
+                        let begin = std::time::SystemTime::now();
+                        log::warn!("Handling client: {}", client_addr);
+
+                        let mut io_plain = IoService::new(&mut stream);
+
+                        let mut conn = Connection::<std::net::TcpStream>::from_plain(
+                            client_addr,
+                            config.clone(),
+                            &mut io_plain,
+                        )?;
+                        Self::handle_connection::<std::net::TcpStream>(
+                            &mut conn,
+                            working_sender,
+                            tls_config,
+                        )
+                        .await
+                        .map(|_| {
+                            log::warn!(
+                                "{{ elapsed: {:?} }} Connection {} closed cleanly",
+                                begin.elapsed(),
+                                client_addr,
+                            );
+                        })
+                        .map_err(|error| {
+                            log::error!(
+                                "{{ elapsed: {:?} }} Connection {} closed with an error {}",
+                                begin.elapsed(),
+                                client_addr,
+                                error,
+                            );
+                            error
+                        })
+                    });
+                }
                 Err(e) => log::error!("Error accepting socket; error = {:?}", e),
             }
         }
+    }
+
+    fn is_version_requirement_satisfied(
+        conn: &rustls::ServerConnection,
+        config: &ServerConfig,
+    ) -> bool {
+        let protocol_version_requirement = config
+            .tls
+            .sni_maps
+            .as_ref()
+            .and_then(|map| {
+                if let Some(sni) = conn.sni_hostname() {
+                    for i in map {
+                        if i.domain == sni {
+                            return Some(i);
+                        }
+                    }
+                }
+                None
+            })
+            .and_then(|i| i.protocol_version.as_ref())
+            .unwrap_or(&config.tls.protocol_version);
+
+        conn.protocol_version()
+            .map(|protocol_version| {
+                protocol_version_requirement
+                    .0
+                    .iter()
+                    .filter(|i| i.0 == protocol_version)
+                    .count()
+                    != 0
+            })
+            .unwrap_or(false)
+    }
+
+    pub async fn handle_connection<S>(
+        conn: &mut Connection<'_, S>,
+        working_sender: std::sync::Arc<tokio::sync::mpsc::Sender<ProcessMessage>>,
+        tls_config: Option<std::sync::Arc<rustls::ServerConfig>>,
+    ) -> Result<(), std::io::Error>
+    where
+        S: std::io::Read + std::io::Write,
+    {
+        let mut helo_domain = None;
+
+        conn.send_code(SMTPReplyCode::Code220)?;
+
+        while conn.is_alive {
+            match Transaction::receive(conn, &helo_domain).await? {
+                crate::transaction::TransactionResult::Nothing => {}
+                crate::transaction::TransactionResult::Mail(mail) => {
+                    helo_domain = Some(mail.envelop.helo.clone());
+
+                    match Queue::Working.write_to_queue(&conn.config, &mail).await {
+                        Ok(_) => {
+                            working_sender
+                                .send(ProcessMessage {
+                                    message_id: mail.metadata.as_ref().unwrap().message_id.clone(),
+                                })
+                                .await
+                                .map_err(|err| {
+                                    std::io::Error::new(std::io::ErrorKind::Other, err.to_string())
+                                })?;
+
+                            conn.send_code(SMTPReplyCode::Code250)?
+                        }
+                        Err(error) => {
+                            log::error!("couldn't write to queue: {}", error);
+                            conn.send_code(SMTPReplyCode::Code554)?
+                        }
+                    };
+                }
+                crate::transaction::TransactionResult::TlsUpgrade if tls_config.is_none() => {
+                    conn.send_code(SMTPReplyCode::Code454)?;
+                    conn.send_code(SMTPReplyCode::Code221)?;
+                    return Ok(());
+                }
+                crate::transaction::TransactionResult::TlsUpgrade => {
+                    let mut tls_conn = rustls::ServerConnection::new(tls_config.unwrap()).unwrap();
+                    let mut tls_stream = rustls::Stream::new(&mut tls_conn, &mut conn.io_stream);
+                    let mut io_tls_stream = IoService::new(&mut tls_stream);
+
+                    Connection::<IoService<'_, S>>::complete_tls_handshake(
+                        &mut io_tls_stream,
+                        &conn.config.tls.handshake_timeout,
+                    )?;
+
+                    let mut secured_conn = Connection {
+                        timestamp: conn.timestamp,
+                        is_alive: true,
+                        config: conn.config.clone(),
+                        client_addr: conn.client_addr,
+                        error_count: conn.error_count,
+                        is_secured: true,
+                        io_stream: &mut io_tls_stream,
+                    };
+
+                    // FIXME: the rejection of the client because of the SSL/TLS protocol
+                    // version is done after the handshake...
+
+                    if !Self::is_version_requirement_satisfied(
+                        secured_conn.io_stream.inner.conn,
+                        &secured_conn.config,
+                    ) {
+                        log::error!("requirement not satisfied");
+                        // TODO: send error 500 ?
+                        return Ok(());
+                    }
+
+                    let mut secured_helo_domain = None;
+
+                    while secured_conn.is_alive {
+                        match Transaction::receive(&mut secured_conn, &secured_helo_domain).await? {
+                            crate::transaction::TransactionResult::Nothing => {}
+                            crate::transaction::TransactionResult::Mail(mail) => {
+                                secured_helo_domain = Some(mail.envelop.helo.clone());
+
+                                match Queue::Working.write_to_queue(&conn.config, &mail).await {
+                                    Ok(_) => {
+                                        working_sender
+                                            .send(ProcessMessage {
+                                                message_id: mail
+                                                    .metadata
+                                                    .as_ref()
+                                                    .unwrap()
+                                                    .message_id
+                                                    .clone(),
+                                            })
+                                            .await
+                                            .map_err(|err| {
+                                                std::io::Error::new(
+                                                    std::io::ErrorKind::Other,
+                                                    err.to_string(),
+                                                )
+                                            })?;
+
+                                        secured_conn.send_code(SMTPReplyCode::Code250)?
+                                    }
+                                    Err(error) => {
+                                        log::error!("couldn't write to queue: {}", error);
+                                        secured_conn.send_code(SMTPReplyCode::Code554)?
+                                    }
+                                };
+                            }
+                            crate::transaction::TransactionResult::TlsUpgrade => todo!(),
+                        }
+                    }
+                    return Ok(());
+                }
+            }
+        }
+
+        Ok(())
     }
 }

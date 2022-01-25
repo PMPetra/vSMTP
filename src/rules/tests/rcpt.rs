@@ -2,29 +2,19 @@
 pub mod test {
     use crate::{
         config::server_config::ServerConfig,
-        model::mail::MailContext,
+        model::mail::{Body, MailContext},
         resolver::DataEndResolver,
         rules::{address::Address, tests::helpers::run_integration_engine_test},
         smtp::code::SMTPReplyCode,
+        test_helpers::DefaultResolverTest,
     };
-
-    struct Test;
-
-    #[async_trait::async_trait]
-    impl DataEndResolver for Test {
-        async fn on_data_end(
-            _: &ServerConfig,
-            _: &MailContext,
-        ) -> Result<SMTPReplyCode, std::io::Error> {
-            Ok(SMTPReplyCode::Code250)
-        }
-    }
 
     // -- testing out rcpt checking.
 
     #[tokio::test]
     async fn test_rcpt_by_user() {
-        assert!(run_integration_engine_test::<Test>(
+        assert!(run_integration_engine_test(
+            DefaultResolverTest {},
             "./src/rules/tests/rules/rcpt/rcpt.vsl",
             "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
@@ -47,7 +37,8 @@ pub mod test {
         .await
         .is_ok());
 
-        assert!(run_integration_engine_test::<Test>(
+        assert!(run_integration_engine_test::<DefaultResolverTest>(
+            DefaultResolverTest {},
             "./src/rules/tests/rules/rcpt/rcpt.vsl",
             "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
@@ -73,7 +64,8 @@ pub mod test {
 
     #[tokio::test]
     async fn test_rcpt_by_fqdn() {
-        assert!(run_integration_engine_test::<Test>(
+        assert!(run_integration_engine_test::<DefaultResolverTest>(
+            DefaultResolverTest {},
             "./src/rules/tests/rules/rcpt/rcpt.vsl",
             "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
@@ -96,7 +88,8 @@ pub mod test {
         .await
         .is_ok());
 
-        assert!(run_integration_engine_test::<Test>(
+        assert!(run_integration_engine_test::<DefaultResolverTest>(
+            DefaultResolverTest {},
             "./src/rules/tests/rules/rcpt/rcpt.vsl",
             "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
@@ -122,7 +115,8 @@ pub mod test {
 
     #[tokio::test]
     async fn test_rcpt_by_address() {
-        assert!(run_integration_engine_test::<Test>(
+        assert!(run_integration_engine_test::<DefaultResolverTest>(
+            DefaultResolverTest {},
             "./src/rules/tests/rules/rcpt/rcpt.vsl",
             "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
@@ -146,6 +140,78 @@ pub mod test {
         .is_ok());
     }
 
+    #[tokio::test]
+    async fn test_rcpt_in_preq() {
+        assert!(run_integration_engine_test(
+            DefaultResolverTest {},
+            "./src/rules/tests/rules/rcpt/contains_rcpt.vsl",
+            "./src/rules/tests/configs/default.config.toml",
+            users::mock::MockUsers::with_current_uid(1),
+            [
+                "HELO foobar\r\n",
+                "MAIL FROM:<test@viridit.com>\r\n",
+                "RCPT TO:<johndoe@other.com>\r\n",
+                "RCPT TO:<worker@viridit.com>\r\n",
+                "RCPT TO:<customer@company.com>\r\n",
+            ]
+            .concat()
+            .as_bytes(),
+            [
+                "220 test.server.com Service ready\r\n",
+                "250 Ok\r\n",
+                "250 Ok\r\n",
+                "250 Ok\r\n",
+                "250 Ok\r\n",
+                "250 Ok\r\n",
+            ]
+            .concat()
+            .as_bytes(),
+        )
+        .await
+        .is_ok());
+
+        assert!(run_integration_engine_test(
+            DefaultResolverTest {},
+            "./src/rules/tests/rules/rcpt/contains_rcpt.vsl",
+            "./src/rules/tests/configs/default.config.toml",
+            users::mock::MockUsers::with_current_uid(1),
+            [
+                "HELO foobar\r\n",
+                "MAIL FROM:<test@viridit.com>\r\n",
+                "RCPT TO:<johndoe@other.com>\r\n",
+                "RCPT TO:<worker@viridit.com>\r\n",
+                "RCPT TO:<customer@company.com>\r\n",
+                "RCPT TO:<green@foo.com>\r\n",
+                "DATA\r\n",
+                "from: test <test@viridit.com>\r\n",
+                "Subject: ...\r\n",
+                "To: johndoe@personal.com, green@personal.com\r\n",
+                "Message-ID: <xxx@localhost.com>\r\n",
+                "Date: Tue, 30 Nov 2021 20:54:27 +0100\r\n",
+                "\r\n",
+                "...\r\n",
+                ".\r\n",
+            ]
+            .concat()
+            .as_bytes(),
+            [
+                "220 test.server.com Service ready\r\n",
+                "250 Ok\r\n",
+                "250 Ok\r\n",
+                "250 Ok\r\n",
+                "250 Ok\r\n",
+                "250 Ok\r\n",
+                "250 Ok\r\n",
+                "354 Start mail input; end with <CRLF>.<CRLF>\r\n",
+                "554 permanent problems with the remote server\r\n",
+            ]
+            .concat()
+            .as_bytes(),
+        )
+        .await
+        .is_ok())
+    }
+
     // -- testing out rcpt actions.
 
     struct TestRcptAdded;
@@ -153,26 +219,38 @@ pub mod test {
     #[async_trait::async_trait]
     impl DataEndResolver for TestRcptAdded {
         async fn on_data_end(
+            &mut self,
             _: &ServerConfig,
             ctx: &MailContext,
         ) -> Result<SMTPReplyCode, std::io::Error> {
             assert!(ctx
                 .envelop
                 .rcpt
-                .get(&Address::new("johndoe@personnal.com").unwrap())
+                .get(&Address::new("johndoe@personal.com").unwrap())
                 .is_some());
             assert!(ctx
                 .envelop
                 .rcpt
-                .get(&Address::new("me@personnal.com").unwrap())
+                .get(&Address::new("me@personal.com").unwrap())
                 .is_some());
             assert!(ctx
                 .envelop
                 .rcpt
-                .get(&Address::new("green@personnal.com").unwrap())
+                .get(&Address::new("green@personal.com").unwrap())
                 .is_some());
 
             assert_eq!(ctx.envelop.rcpt.len(), 3);
+
+            assert!(if let Body::Parsed(body) = &ctx.body {
+                if let Some((_, to)) = body.headers.iter().find(|(header, _)| header == "to") {
+                    to == "johndoe@personal.com, green@personal.com, me@personal.com"
+                } else {
+                    false
+                }
+            } else {
+                false
+            });
+
             Ok(SMTPReplyCode::Code250)
         }
     }
@@ -180,15 +258,23 @@ pub mod test {
     #[tokio::test]
     async fn test_add_rcpt() {
         assert!(run_integration_engine_test::<TestRcptAdded>(
+            TestRcptAdded {},
             "./src/rules/tests/rules/rcpt/add_rcpt.vsl",
             "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             [
                 "HELO foobar\r\n",
                 "MAIL FROM:<test@viridit.com>\r\n",
-                "RCPT TO:<johndoe@personnal.com>\r\n",
-                "RCPT TO:<green@personnal.com>\r\n",
+                "RCPT TO:<johndoe@personal.com>\r\n",
+                "RCPT TO:<green@personal.com>\r\n",
                 "DATA\r\n",
+                "from: test <test@viridit.com>\r\n",
+                "Subject: ADD_RCPT\r\n",
+                "To: johndoe@personal.com, green@personal.com\r\n",
+                "Message-ID: <xxx@localhost.com>\r\n",
+                "Date: Tue, 30 Nov 2021 20:54:27 +0100\r\n",
+                "\r\n",
+                "added rcpts!\r\n",
                 ".\r\n",
                 "QUIT\r\n",
             ]
@@ -216,6 +302,7 @@ pub mod test {
     #[async_trait::async_trait]
     impl DataEndResolver for TestRcptRemoved {
         async fn on_data_end(
+            &mut self,
             _: &ServerConfig,
             ctx: &MailContext,
         ) -> Result<SMTPReplyCode, std::io::Error> {
@@ -238,6 +325,17 @@ pub mod test {
                 .is_some());
 
             assert_eq!(ctx.envelop.rcpt.len(), 2);
+
+            assert!(if let Body::Parsed(body) = &ctx.body {
+                if let Some((_, to)) = body.headers.iter().find(|(header, _)| header == "to") {
+                    to == "staff@viridit.com, john@foo.eu"
+                } else {
+                    false
+                }
+            } else {
+                false
+            });
+
             Ok(SMTPReplyCode::Code250)
         }
     }
@@ -245,6 +343,7 @@ pub mod test {
     #[tokio::test]
     async fn test_remove_rcpt() {
         assert!(run_integration_engine_test::<TestRcptRemoved>(
+            TestRcptRemoved {},
             "./src/rules/tests/rules/rcpt/rm_rcpt.vsl",
             "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
@@ -255,6 +354,13 @@ pub mod test {
                 "RCPT TO:<green@satan.org>\r\n",
                 "RCPT TO:<john@foo.eu>\r\n",
                 "DATA\r\n",
+                "from: test <test@viridit.com>\r\n",
+                "Subject: DEL_RCPT\r\n",
+                "To: staff@viridit.com, green@satan.org, john@foo.eu\r\n",
+                "Message-ID: <xxx@localhost.com>\r\n",
+                "Date: Tue, 30 Nov 2021 20:54:27 +0100\r\n",
+                "\r\n",
+                "Rewritten rcpts!\r\n",
                 ".\r\n",
                 "QUIT\r\n",
             ]
@@ -278,11 +384,12 @@ pub mod test {
         .is_ok());
     }
 
-    struct TestRcptRewriten;
+    struct TestRcptRewritten;
 
     #[async_trait::async_trait]
-    impl DataEndResolver for TestRcptRewriten {
+    impl DataEndResolver for TestRcptRewritten {
         async fn on_data_end(
+            &mut self,
             _: &ServerConfig,
             ctx: &MailContext,
         ) -> Result<SMTPReplyCode, std::io::Error> {
@@ -310,13 +417,25 @@ pub mod test {
                 .is_some());
 
             assert_eq!(ctx.envelop.rcpt.len(), 4);
+
+            assert!(if let Body::Parsed(body) = &ctx.body {
+                if let Some((_, to)) = body.headers.iter().find(|(header, _)| header == "to") {
+                    to == "staff@viridit.fr, green@viridit.fr, john@viridit.fr, other@unknown.eu"
+                } else {
+                    false
+                }
+            } else {
+                false
+            });
+
             Ok(SMTPReplyCode::Code250)
         }
     }
 
     #[tokio::test]
     async fn test_rewrite_rcpt() {
-        assert!(run_integration_engine_test::<TestRcptRewriten>(
+        assert!(run_integration_engine_test::<TestRcptRewritten>(
+            TestRcptRewritten {},
             "./src/rules/tests/rules/rcpt/rw_rcpt.vsl",
             "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
@@ -328,6 +447,13 @@ pub mod test {
                 "RCPT TO:<john@viridit.com>\r\n",
                 "RCPT TO:<other@unknown.eu>\r\n",
                 "DATA\r\n",
+                "from: test <test@viridit.com>\r\n",
+                "Subject: RCPT\r\n",
+                "To: staff@viridit.eu, green@viridit.org, john@viridit.com, other@unknown.eu\r\n",
+                "Message-ID: <xxx@localhost.com>\r\n",
+                "Date: Tue, 30 Nov 2021 20:54:27 +0100\r\n",
+                "\r\n",
+                "Rewritten rcpts!\r\n",
                 ".\r\n",
                 "QUIT\r\n",
             ]
