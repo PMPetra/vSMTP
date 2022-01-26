@@ -126,9 +126,8 @@ let vsl = #{
         __MAIL(from, to, subject, body);
     },
 
-    // reverse lookup.
-    R_LOOKUP: |address, port| {
-        __R_LOOKUP(address, port)
+    LOOKUP_MAIL_FROM: || {
+        __LOOKUP_MAIL_FROM(connect, port, mail.domain)
     },
 
     // set resolver to maildir.

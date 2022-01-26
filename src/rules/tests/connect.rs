@@ -5,19 +5,24 @@ pub mod test {
     };
 
     #[tokio::test]
-    async fn test_connect_rules() {
+    async fn test_valid_connect_rules() {
         assert!(run_integration_engine_test(
+            "127.0.0.1:0",
             DefaultResolverTest {},
             "./src/rules/tests/rules/connect/valid_connect.vsl",
             "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             b"",
-            b"220 test.server.com Service ready\r\n"
+            b"220 test.server.com Service ready\r\n",
         )
         .await
         .is_ok());
+    }
 
+    #[tokio::test]
+    async fn test_invalid_connect_rules() {
         assert!(run_integration_engine_test(
+            "127.0.0.1:0",
             DefaultResolverTest {},
             "./src/rules/tests/rules/connect/invalid_connect.vsl",
             "./src/rules/tests/configs/default.config.toml",
