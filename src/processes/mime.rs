@@ -65,8 +65,8 @@ pub async fn start(
             .add_data("metadata", ctx.metadata.clone());
 
         match rule_engine.run_when("postq") {
-            Status::Deny => Queue::Dead.write_to_queue(config, &ctx).await?,
-            Status::Block => Queue::Quarantine.write_to_queue(config, &ctx).await?,
+            Status::Deny => Queue::Dead.write_to_queue(config, &ctx)?,
+            Status::Block => Queue::Quarantine.write_to_queue(config, &ctx)?,
             _ => {
                 match rule_engine.get_scoped_envelop() {
                     Some((envelop, metadata, mail)) => {
@@ -79,7 +79,20 @@ pub async fn start(
                     ),
                 };
 
-                Queue::Deliver.write_to_queue(config, &ctx).await?;
+                match &ctx.metadata {
+                    // quietly skipping delivery processes when there is no resolver.
+                    // (in case of a quarantine for example)
+                    Some(metadata) if metadata.resolver == "none" => {
+                        log::warn!(
+                            target: DELIVER,
+                            "delivery skipped due to NO_DELIVERY action call."
+                        );
+                        return Ok(());
+                    }
+                    _ => {}
+                };
+
+                Queue::Deliver.write_to_queue(config, &ctx)?;
 
                 delivery_sender
                     .send(ProcessMessage {
