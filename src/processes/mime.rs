@@ -29,12 +29,12 @@ pub async fn start(
     config: &ServerConfig,
     mut working_receiver: tokio::sync::mpsc::Receiver<ProcessMessage>,
     delivery_sender: tokio::sync::mpsc::Sender<ProcessMessage>,
-) -> std::io::Result<()> {
+) -> anyhow::Result<()> {
     async fn handle_one(
         process_message: ProcessMessage,
         config: &ServerConfig,
         delivery_sender: &tokio::sync::mpsc::Sender<ProcessMessage>,
-    ) -> std::io::Result<()> {
+    ) -> anyhow::Result<()> {
         log::debug!(
             target: DELIVER,
             "vMIME process received a new message id: {}",
@@ -46,16 +46,12 @@ pub async fn start(
 
         log::debug!(target: DELIVER, "vMIME opening file: {:?}", file_to_process);
 
-        let ctx: crate::model::mail::MailContext =
+        let mut ctx: crate::model::mail::MailContext =
             serde_json::from_str(&std::fs::read_to_string(&file_to_process)?)?;
 
         let parsed_email = match &ctx.body {
             Body::Parsed(parsed_email) => parsed_email.clone(),
-            Body::Raw(raw) => Box::new(
-                MailMimeParser::default()
-                    .parse(raw.as_bytes())
-                    .expect("handle errors when parsing email in vMIME"),
-            ),
+            Body::Raw(raw) => Box::new(MailMimeParser::default().parse(raw.as_bytes())?),
         };
 
         let mut rule_engine = RuleEngine::new(config);
@@ -69,10 +65,34 @@ pub async fn start(
             .add_data("metadata", ctx.metadata.clone());
 
         match rule_engine.run_when("postq") {
-            Status::Deny => Queue::Dead.write_to_queue(config, &ctx).await?,
-            Status::Block => Queue::Quarantine.write_to_queue(config, &ctx).await?,
+            Status::Deny => Queue::Dead.write_to_queue(config, &ctx)?,
+            Status::Block => Queue::Quarantine.write_to_queue(config, &ctx)?,
             _ => {
-                Queue::Deliver.write_to_queue(config, &ctx).await?;
+                match rule_engine.get_scoped_envelop() {
+                    Some((envelop, metadata, mail)) => {
+                        ctx.envelop = envelop;
+                        ctx.metadata = metadata;
+                        ctx.body = Body::Parsed(mail.into());
+                    }
+                    _ => anyhow::bail!(
+                        "one of the email context variables could not be found in rhai's context."
+                    ),
+                };
+
+                match &ctx.metadata {
+                    // quietly skipping delivery processes when there is no resolver.
+                    // (in case of a quarantine for example)
+                    Some(metadata) if metadata.resolver == "none" => {
+                        log::warn!(
+                            target: DELIVER,
+                            "delivery skipped due to NO_DELIVERY action call."
+                        );
+                        return Ok(());
+                    }
+                    _ => {}
+                };
+
+                Queue::Deliver.write_to_queue(config, &ctx)?;
 
                 delivery_sender
                     .send(ProcessMessage {

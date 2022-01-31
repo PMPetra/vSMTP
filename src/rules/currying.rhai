@@ -121,14 +121,20 @@ let vsl = #{
         __BLOCK()
     },
 
+    // put the email in the quarantine queue.
+    // autmaticaly calls NO_DELIVERY.
+    QUARANTINE: |reason| {
+        __OPERATION_QUEUE.op_quarantine(reason);
+        metadata.resolver = "none";
+    },
+
     // send a mail.
     MAIL: |from, to, subject, body| {
         __MAIL(from, to, subject, body);
     },
 
-    // reverse lookup.
-    R_LOOKUP: |address, port| {
-        __R_LOOKUP(address, port)
+    LOOKUP_MAIL_FROM: || {
+        __LOOKUP_MAIL_FROM(connect, port, mail.domain)
     },
 
     // set resolver to maildir.
@@ -136,8 +142,18 @@ let vsl = #{
         metadata.resolver = "maildir";
     },
 
-    // set resolver to smtp.
+    // set resolver to smtp (lettre).
     USE_SMTP: || {
         metadata.resolver = "smtp";
+    },
+
+    // set resolver to mbox (default mbox database format).
+    USE_MBOX: || {
+        metadata.resolver = "mbox";
+    },
+
+    // prevent the system to deliver the email.
+    NO_DELIVERY: || {
+        metadata.resolver = "none";
     },
 };

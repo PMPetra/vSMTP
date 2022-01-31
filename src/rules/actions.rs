@@ -27,6 +27,8 @@ use rhai::plugin::*;
 
 use super::address::Address;
 
+use std::net::ToSocketAddrs;
+
 // exported methods are used in rhai context, so we allow dead code.
 #[allow(dead_code)]
 #[export_module]
@@ -43,6 +45,11 @@ pub(super) mod vsl {
     /// enqueue a block operation on the queue.
     pub fn op_block(queue: &mut OperationQueue, path: &str) {
         queue.enqueue(Operation::Block(path.to_string()))
+    }
+
+    /// enqueue a quarantine operation on the queue.
+    pub fn op_quarantine(queue: &mut OperationQueue, reason: String) {
+        queue.enqueue(Operation::Quarantine { reason })
     }
 
     /// enqueue a header mutation operation on the queue.
@@ -243,49 +250,38 @@ pub(super) mod vsl {
         }
     }
 
-    #[rhai_fn(name = "__R_LOOKUP", return_raw)]
-    /// find an address from an object / string literal ip.
-    pub fn reverse_lookup(object: &str, port: i64) -> Result<String, Box<EvalAltResult>> {
-        use std::net::*;
-
-        match acquire_engine().objects.read().unwrap().get(object) {
-            Some(Object::Ip4(addr)) => crate::rules::rule_engine::reverse_lookup(&SocketAddr::new(
-                IpAddr::V4(*addr),
-                port as u16,
-            ))
-            .map_err(|error| {
-                format!("couldn't process reverse lookup using ipv4: {}", error).into()
-            }),
-
-            Some(Object::Ip6(addr)) => crate::rules::rule_engine::reverse_lookup(&SocketAddr::new(
-                IpAddr::V6(*addr),
-                port as u16,
-            ))
-            .map_err(|error| {
-                format!("couldn't process reverse lookup using ipv6: {}", error).into()
-            }),
-
-            _ => match <SocketAddr as std::str::FromStr>::from_str(&format!("{}:{}", object, port))
-            {
-                Ok(socket) => crate::rules::rule_engine::reverse_lookup(&socket)
-                    .map_err(|error| format!("couldn't process reverse lookup: {}", error).into()),
-                Err(error) => {
-                    Err(format!("couldn't process reverse lookup for {}: {}", object, error).into())
-                }
-            },
+    #[rhai_fn(name = "__LOOKUP_MAIL_FROM", return_raw)]
+    /// check the client's ip matches against the hostname passed has parameter.
+    /// this can be used, for example, to check if MAIL FROM's value
+    /// is matching the connection, preventing relaying.
+    pub fn lookup_mail_from(
+        // curried parameters.
+        connect: std::net::IpAddr,
+        port: u16,
+        // exposed parameter.
+        hostname: &str,
+    ) -> Result<bool, Box<EvalAltResult>> {
+        if hostname.is_empty() {
+            return Err(
+                "the LOOKUP_MAIL_FROM action can only be called after or in the 'mail' stage."
+                    .into(),
+            );
         }
-    }
 
-    #[rhai_fn(name = "__R_LOOKUP", return_raw)]
-    /// find an address from an IpAddr object (connect).
-    pub fn reverse_lookup_from_ip(
-        ip: std::net::IpAddr,
-        port: i64,
-    ) -> Result<String, Box<EvalAltResult>> {
-        crate::rules::rule_engine::reverse_lookup(&std::net::SocketAddr::new(ip, port as u16))
-            .map_err(|error| {
-                format!("couldn't process reverse lookup using ipv4: {}", error).into()
-            })
+        let engine = acquire_engine();
+        let objects = engine.objects.read().unwrap();
+
+        let hostname = match objects.get(hostname) {
+            Some(Object::Fqdn(fqdn)) => fqdn.as_str(),
+            _ => hostname,
+        };
+
+        Ok(format!("{}:{}", hostname, port)
+            .to_socket_addrs()
+            .map_err::<Box<EvalAltResult>, _>(|error| {
+                format!("couldn't process dns lookup: {}", error).into()
+            })?
+            .any(|socket| socket.ip() == connect))
     }
 
     #[rhai_fn(name = "==")]

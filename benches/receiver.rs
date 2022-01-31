@@ -21,7 +21,7 @@ impl DataEndResolver for DefaultResolverTest {
         &mut self,
         _: &ServerConfig,
         _: &MailContext,
-    ) -> Result<SMTPReplyCode, std::io::Error> {
+    ) -> anyhow::Result<SMTPReplyCode> {
         Ok(SMTPReplyCode::Code250)
     }
 }
@@ -40,7 +40,14 @@ fn make_bench<R: vsmtp::resolver::DataEndResolver>(
 ) {
     b.to_async(tokio::runtime::Runtime::new().unwrap())
         .iter(|| async {
-            let _ = test_receiver(resolver.clone(), input, output, config.clone()).await;
+            let _ = test_receiver(
+                "127.0.0.1:0",
+                resolver.clone(),
+                input,
+                output,
+                config.clone(),
+            )
+            .await;
         })
 }
 
@@ -54,7 +61,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 &mut self,
                 _: &ServerConfig,
                 ctx: &MailContext,
-            ) -> Result<SMTPReplyCode, std::io::Error> {
+            ) -> anyhow::Result<SMTPReplyCode> {
                 assert_eq!(ctx.envelop.helo, "foobar");
                 assert_eq!(ctx.envelop.mail_from.full(), "john@doe");
                 assert_eq!(

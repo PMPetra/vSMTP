@@ -36,9 +36,7 @@ pub struct ServerVSMTP {
 }
 
 impl ServerVSMTP {
-    pub async fn new(
-        config: std::sync::Arc<ServerConfig>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn new(config: std::sync::Arc<ServerConfig>) -> anyhow::Result<Self> {
         // NOTE: Err type is core::convert::Infallible, it's safe to unwrap.
         let spool_dir =
             <std::path::PathBuf as std::str::FromStr>::from_str(&config.smtp.spool_dir).unwrap();
@@ -75,7 +73,7 @@ impl ServerVSMTP {
         self
     }
 
-    pub async fn listen_and_serve(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn listen_and_serve(&mut self) -> anyhow::Result<()> {
         let delivery_buffer_size = self
             .config
             .delivery
@@ -208,7 +206,7 @@ impl ServerVSMTP {
         conn: &mut Connection<'_, S>,
         working_sender: std::sync::Arc<tokio::sync::mpsc::Sender<ProcessMessage>>,
         tls_config: Option<std::sync::Arc<rustls::ServerConfig>>,
-    ) -> Result<(), std::io::Error>
+    ) -> anyhow::Result<()>
     where
         S: std::io::Read + std::io::Write,
     {
@@ -222,7 +220,18 @@ impl ServerVSMTP {
                 crate::transaction::TransactionResult::Mail(mail) => {
                     helo_domain = Some(mail.envelop.helo.clone());
 
-                    match Queue::Working.write_to_queue(&conn.config, &mail).await {
+                    match &mail.metadata {
+                        // quietly skipping mime & delivery processes when there is no resolver.
+                        // (in case of a quarantine for example)
+                        Some(metadata) if metadata.resolver == "none" => {
+                            log::warn!("delivery skipped due to NO_DELIVERY action call.");
+                            conn.send_code(SMTPReplyCode::Code250)?;
+                            continue;
+                        }
+                        _ => {}
+                    };
+
+                    match Queue::Working.write_to_queue(&conn.config, &mail) {
                         Ok(_) => {
                             working_sender
                                 .send(ProcessMessage {
@@ -286,7 +295,20 @@ impl ServerVSMTP {
                             crate::transaction::TransactionResult::Mail(mail) => {
                                 secured_helo_domain = Some(mail.envelop.helo.clone());
 
-                                match Queue::Working.write_to_queue(&conn.config, &mail).await {
+                                match &mail.metadata {
+                                    // quietly skipping mime & delivery processes when there is no resolver.
+                                    // (in case of a quarantine for example)
+                                    Some(metadata) if metadata.resolver == "none" => {
+                                        log::warn!(
+                                            "delivery skipped due to NO_DELIVERY action call."
+                                        );
+                                        secured_conn.send_code(SMTPReplyCode::Code250)?;
+                                        continue;
+                                    }
+                                    _ => {}
+                                };
+
+                                match Queue::Working.write_to_queue(&conn.config, &mail) {
                                     Ok(_) => {
                                         working_sender
                                             .send(ProcessMessage {

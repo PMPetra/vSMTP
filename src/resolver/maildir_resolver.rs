@@ -22,44 +22,22 @@ use crate::{
 
 use super::Resolver;
 
-/// sets user & group rights to the given file / folder.
-fn chown_file(path: &std::path::Path, user: &users::User) -> std::io::Result<()> {
-    if unsafe {
-        libc::chown(
-            // NOTE: to_string_lossy().as_bytes() isn't the right way of converting a PathBuf
-            //       to a CString because it is platform independent.
-            std::ffi::CString::new(path.to_string_lossy().as_bytes())?.as_ptr(),
-            user.uid(),
-            user.uid(),
-        )
-    } != 0
-    {
-        log::error!("unable to setuid of user {:?}", user.name());
-        return Err(std::io::Error::last_os_error());
-    }
-
-    Ok(())
-}
-
 #[derive(Default)]
 pub struct MailDirResolver;
 
 impl MailDirResolver {
     // getting user's home directory using getpwuid.
-    fn get_maildir_path(user: &std::sync::Arc<users::User>) -> std::io::Result<std::path::PathBuf> {
+    fn get_maildir_path(user: &std::sync::Arc<users::User>) -> anyhow::Result<std::path::PathBuf> {
         let passwd = unsafe { libc::getpwuid(user.uid()) };
         if !passwd.is_null() && !unsafe { *passwd }.pw_dir.is_null() {
             unsafe { std::ffi::CStr::from_ptr((*passwd).pw_dir) }
                 .to_str()
                 .map(|path| std::path::PathBuf::from_iter([&path.to_string(), "Maildir", "new"]))
                 .map_err(|error| {
-                    std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        format!("unable to get user's home directory: '{}'", error),
-                    )
+                    anyhow::anyhow!("unable to get user's home directory: '{}'", error)
                 })
         } else {
-            Err(std::io::Error::last_os_error())
+            anyhow::bail!(std::io::Error::last_os_error())
         }
     }
 
@@ -70,7 +48,7 @@ impl MailDirResolver {
         rcpt: &Address,
         metadata: &MessageMetadata,
         content: &str,
-    ) -> std::io::Result<()> {
+    ) -> anyhow::Result<()> {
         match crate::rules::rule_engine::get_user_by_name(rcpt.local_part()) {
             Some(user) => {
                 let mut maildir = Self::get_maildir_path(&user)?;
@@ -78,14 +56,11 @@ impl MailDirResolver {
                 // create and set rights for the MailDir folder if it doesn't exists.
                 if !maildir.exists() {
                     std::fs::create_dir_all(&maildir)?;
-                    chown_file(&maildir, &user)?;
-                    chown_file(
-                        maildir.parent().ok_or_else(|| {
-                            std::io::Error::new(
-                                std::io::ErrorKind::Other,
-                                "Maildir parent folder is missing.",
-                            )
-                        })?,
+                    super::chown_file(&maildir, &user)?;
+                    super::chown_file(
+                        maildir
+                            .parent()
+                            .ok_or_else(|| anyhow::anyhow!("Maildir parent folder is missing."))?,
                         &user,
                     )?;
                 }
@@ -101,15 +76,9 @@ impl MailDirResolver {
 
                 std::io::Write::write_all(&mut email, content.as_bytes())?;
 
-                chown_file(&maildir, &user)?;
+                super::chown_file(&maildir, &user)?;
             }
-            None => {
-                log::error!("unable to get user '{}' by name", rcpt.local_part());
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "unable to get user",
-                ));
-            }
+            None => anyhow::bail!("unable to get user '{}' by name", rcpt.local_part()),
         }
 
         log::debug!(
@@ -125,7 +94,7 @@ impl MailDirResolver {
 
 #[async_trait::async_trait]
 impl Resolver for MailDirResolver {
-    async fn deliver(&self, _: &ServerConfig, mail: &MailContext) -> std::io::Result<()> {
+    async fn deliver(&self, _: &ServerConfig, mail: &MailContext) -> anyhow::Result<()> {
         // NOTE: see https://docs.rs/tempfile/3.0.7/tempfile/index.html
         //       and https://en.wikipedia.org/wiki/Maildir
 
@@ -144,13 +113,10 @@ impl Resolver for MailDirResolver {
                 "Users '{:?}' not found on the system, skipping delivery ...",
                 not_local_users
             );
-            Err(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!(
-                    "Users '{:?}' not found on the system, skipping delivery ...",
-                    not_local_users
-                ),
-            ))
+            anyhow::bail!(
+                "Users '{:?}' not found on the system, skipping delivery ...",
+                not_local_users
+            )
         } else {
             for rcpt in &mail.envelop.rcpt {
                 log::debug!(target: RESOLVER, "writing email to {}'s inbox.", rcpt);

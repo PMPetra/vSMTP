@@ -58,23 +58,23 @@ impl DataEndResolver for DefaultResolverTest {
         &mut self,
         _: &ServerConfig,
         _: &MailContext,
-    ) -> Result<SMTPReplyCode, std::io::Error> {
+    ) -> anyhow::Result<SMTPReplyCode> {
         Ok(SMTPReplyCode::Code250)
     }
 }
 
 // TODO: should be a macro instead of a function.
 pub async fn test_receiver<T: DataEndResolver>(
+    address: &str,
     _: std::sync::Arc<tokio::sync::Mutex<T>>,
     smtp_input: &[u8],
     expected_output: &[u8],
     config: std::sync::Arc<ServerConfig>,
-) -> Result<(), std::io::Error> {
+) -> anyhow::Result<()> {
     let mut written_data = Vec::new();
     let mut mock = Mock::new(smtp_input.to_vec(), &mut written_data);
     let mut io = IoService::new(&mut mock);
-    let mut conn =
-        Connection::<Mock<'_>>::from_plain("0.0.0.0:0".parse().unwrap(), config, &mut io)?;
+    let mut conn = Connection::<Mock<'_>>::from_plain(address.parse().unwrap(), config, &mut io)?;
 
     let (working_sender, _receiver) = tokio::sync::mpsc::channel::<ProcessMessage>(10);
 
