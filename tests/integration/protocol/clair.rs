@@ -5,9 +5,8 @@ mod tests {
     use vsmtp::{
         config::server_config::{InnerSMTPConfig, InnerTlsConfig, ServerConfig, TlsSecurityLevel},
         model::mail::{Body, MailContext},
-        resolver::DataEndResolver,
+        resolver::Resolver,
         rules::address::Address,
-        smtp::code::SMTPReplyCode,
         test_helpers::{test_receiver, DefaultResolverTest},
     };
 
@@ -18,12 +17,8 @@ mod tests {
         struct T;
 
         #[async_trait::async_trait]
-        impl DataEndResolver for T {
-            async fn on_data_end(
-                &mut self,
-                _: &ServerConfig,
-                ctx: &MailContext,
-            ) -> anyhow::Result<SMTPReplyCode> {
+        impl Resolver for T {
+            async fn deliver(&mut self, _: &ServerConfig, ctx: &MailContext) -> anyhow::Result<()> {
                 assert_eq!(ctx.envelop.helo, "foobar");
                 assert_eq!(ctx.envelop.mail_from.full(), "john@doe");
                 assert_eq!(
@@ -36,13 +31,13 @@ mod tests {
                 });
                 assert!(ctx.metadata.is_some());
 
-                Ok(SMTPReplyCode::Code250)
+                Ok(())
             }
         }
 
         assert!(test_receiver(
             "127.0.0.1:0",
-            std::sync::Arc::new(tokio::sync::Mutex::new(T)),
+            T,
             [
                 "HELO foobar\r\n",
                 "MAIL FROM:<john@doe>\r\n",
@@ -72,9 +67,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_receiver_2() {
-        assert!(test_receiver::<DefaultResolverTest>(
+        assert!(test_receiver(
             "127.0.0.1:0",
-            std::sync::Arc::new(tokio::sync::Mutex::new(DefaultResolverTest)),
+            DefaultResolverTest,
             ["foo\r\n"].concat().as_bytes(),
             [
                 "220 test.server.com Service ready\r\n",
@@ -90,9 +85,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_receiver_3() {
-        assert!(test_receiver::<DefaultResolverTest>(
+        assert!(test_receiver(
             "127.0.0.1:0",
-            std::sync::Arc::new(tokio::sync::Mutex::new(DefaultResolverTest)),
+            DefaultResolverTest,
             ["MAIL FROM:<john@doe>\r\n"].concat().as_bytes(),
             [
                 "220 test.server.com Service ready\r\n",
@@ -108,9 +103,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_receiver_4() {
-        assert!(test_receiver::<DefaultResolverTest>(
+        assert!(test_receiver(
             "127.0.0.1:0",
-            std::sync::Arc::new(tokio::sync::Mutex::new(DefaultResolverTest)),
+            DefaultResolverTest,
             ["RCPT TO:<john@doe>\r\n"].concat().as_bytes(),
             [
                 "220 test.server.com Service ready\r\n",
@@ -126,9 +121,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_receiver_5() {
-        assert!(test_receiver::<DefaultResolverTest>(
+        assert!(test_receiver(
             "127.0.0.1:0",
-            std::sync::Arc::new(tokio::sync::Mutex::new(DefaultResolverTest)),
+            DefaultResolverTest,
             ["HELO foo\r\n", "RCPT TO:<bar@foo>\r\n"]
                 .concat()
                 .as_bytes(),
@@ -147,9 +142,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_receiver_6() {
-        assert!(test_receiver::<DefaultResolverTest>(
+        assert!(test_receiver(
             "127.0.0.1:0",
-            std::sync::Arc::new(tokio::sync::Mutex::new(DefaultResolverTest)),
+            DefaultResolverTest,
             ["HELO foobar\r\n", "QUIT\r\n"].concat().as_bytes(),
             [
                 "220 test.server.com Service ready\r\n",
@@ -168,7 +163,7 @@ mod tests {
     /*
     #[tokio::test]
     async fn test_receiver_7() {
-        assert!(test_receiver::<DefaultResolverTest>(
+        assert!(test_receiver(
             ["EHLO foobar\r\n", "STARTTLS\r\n", "QUIT\r\n"]
                 .concat()
                 .as_bytes(),
@@ -208,9 +203,9 @@ mod tests {
         };
         config.prepare();
 
-        assert!(test_receiver::<DefaultResolverTest>(
+        assert!(test_receiver(
             "127.0.0.1:0",
-            std::sync::Arc::new(tokio::sync::Mutex::new(DefaultResolverTest)),
+            DefaultResolverTest,
             ["EHLO foobar\r\n", "MAIL FROM: <foo@bar>\r\n", "QUIT\r\n"]
                 .concat()
                 .as_bytes(),
@@ -235,9 +230,9 @@ mod tests {
     #[tokio::test]
     async fn test_receiver_9() {
         let before_test = std::time::Instant::now();
-        let res = test_receiver::<DefaultResolverTest>(
+        let res = test_receiver(
             "127.0.0.1:0",
-            std::sync::Arc::new(tokio::sync::Mutex::new(DefaultResolverTest)),
+            DefaultResolverTest,
             [
                 "RCPT TO:<bar@foo>\r\n",
                 "MAIL FROM: <foo@bar>\r\n",
@@ -288,9 +283,9 @@ mod tests {
         };
         config.prepare();
 
-        assert!(test_receiver::<DefaultResolverTest>(
+        assert!(test_receiver(
             "127.0.0.1:0",
-            std::sync::Arc::new(tokio::sync::Mutex::new(DefaultResolverTest)),
+            DefaultResolverTest,
             ["HELP\r\n"].concat().as_bytes(),
             [
                 // FIXME:
@@ -307,9 +302,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_receiver_11() {
-        assert!(test_receiver::<DefaultResolverTest>(
+        assert!(test_receiver(
             "127.0.0.1:0",
-            std::sync::Arc::new(tokio::sync::Mutex::new(DefaultResolverTest)),
+            DefaultResolverTest,
             [
                 "HELO postmaster\r\n",
                 "MAIL FROM: <lala@foo>\r\n",
@@ -341,9 +336,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_receiver_11_bis() {
-        assert!(test_receiver::<DefaultResolverTest>(
+        assert!(test_receiver(
             "127.0.0.1:0",
-            std::sync::Arc::new(tokio::sync::Mutex::new(DefaultResolverTest)),
+            DefaultResolverTest,
             [
                 "HELO postmaster\r\n",
                 "MAIL FROM: <lala@foo>\r\n",
@@ -384,9 +379,9 @@ mod tests {
             ..ServerConfig::default()
         };
         config.prepare();
-        assert!(test_receiver::<DefaultResolverTest>(
+        assert!(test_receiver(
             "127.0.0.1:0",
-            std::sync::Arc::new(tokio::sync::Mutex::new(DefaultResolverTest)),
+            DefaultResolverTest,
             ["EHLO postmaster\r\n"].concat().as_bytes(),
             [
                 // FIXME:
@@ -408,12 +403,8 @@ mod tests {
         }
 
         #[async_trait::async_trait]
-        impl DataEndResolver for T {
-            async fn on_data_end(
-                &mut self,
-                _: &ServerConfig,
-                ctx: &MailContext,
-            ) -> anyhow::Result<SMTPReplyCode> {
+        impl Resolver for T {
+            async fn deliver(&mut self, _: &ServerConfig, ctx: &MailContext) -> anyhow::Result<()> {
                 match self.count {
                     0 => {
                         assert_eq!(ctx.envelop.helo, "foobar");
@@ -445,13 +436,13 @@ mod tests {
 
                 self.count += 1;
 
-                Ok(SMTPReplyCode::Code250)
+                Ok(())
             }
         }
 
-        assert!(test_receiver::<T>(
+        assert!(test_receiver(
             "127.0.0.1:0",
-            std::sync::Arc::new(tokio::sync::Mutex::new(T { count: 0 })),
+            T { count: 0 },
             [
                 "HELO foobar\r\n",
                 "MAIL FROM:<john@doe>\r\n",
@@ -496,12 +487,8 @@ mod tests {
         }
 
         #[async_trait::async_trait]
-        impl DataEndResolver for T {
-            async fn on_data_end(
-                &mut self,
-                _: &ServerConfig,
-                ctx: &MailContext,
-            ) -> anyhow::Result<SMTPReplyCode> {
+        impl Resolver for T {
+            async fn deliver(&mut self, _: &ServerConfig, ctx: &MailContext) -> anyhow::Result<()> {
                 match self.count {
                     0 => {
                         assert_eq!(ctx.envelop.helo, "foobar");
@@ -533,13 +520,13 @@ mod tests {
 
                 self.count += 1;
 
-                Ok(SMTPReplyCode::Code250)
+                Ok(())
             }
         }
 
-        assert!(test_receiver::<T>(
+        assert!(test_receiver(
             "127.0.0.1:0",
-            std::sync::Arc::new(tokio::sync::Mutex::new(T { count: 0 })),
+            T { count: 0 },
             [
                 "HELO foobar\r\n",
                 "MAIL FROM:<john@doe>\r\n",
