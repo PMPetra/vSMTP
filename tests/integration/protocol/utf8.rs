@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use crate::integration::protocol::get_test_config;
     use vsmtp::test_helpers::test_receiver;
     use vsmtp::{
         config::server_config::ServerConfig, model::mail::Body, model::mail::MailContext,
@@ -61,7 +60,17 @@ mod tests {
                 ]
                 .concat()
                 .as_bytes(),
-                get_test_config()
+                std::sync::Arc::new(
+                    ServerConfig::builder()
+                        .with_server_default_port("test.server.com")
+                        .without_log()
+                        .without_smtps()
+                        .with_default_smtp()
+                        .with_delivery("./tmp/delivery", vsmtp::collection! {})
+                        .with_rules("./tmp/nothing")
+                        .with_default_reply_codes()
+                        .build(),
+                )
             )
             .await
             .is_ok());

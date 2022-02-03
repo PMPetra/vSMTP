@@ -21,10 +21,13 @@
     Hash,
     Copy,
     Clone,
+    enum_iterator::IntoEnumIterator,
     serde::Deserialize,
     serde::Serialize,
-    enum_iterator::IntoEnumIterator,
 )]
+#[serde(untagged)]
+#[serde(into = "String")]
+#[serde(try_from = "String")]
 pub enum StateSMTP {
     Connect,
     Helo,
@@ -46,6 +49,12 @@ impl std::fmt::Display for StateSMTP {
             StateSMTP::Data => "Data",
             StateSMTP::Stop => "Stop",
         })
+    }
+}
+
+impl From<StateSMTP> for String {
+    fn from(state: StateSMTP) -> String {
+        format!("{}", state)
     }
 }
 
@@ -72,6 +81,14 @@ impl std::str::FromStr for StateSMTP {
             "Stop" => Ok(StateSMTP::Stop),
             _ => Err(StateSMTPFromStrError),
         }
+    }
+}
+
+impl TryFrom<String> for StateSMTP {
+    type Error = StateSMTPFromStrError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        <StateSMTP as std::str::FromStr>::from_str(&value)
     }
 }
 

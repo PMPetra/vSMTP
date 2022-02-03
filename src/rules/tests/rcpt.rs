@@ -16,7 +16,6 @@ pub mod test {
             "127.0.0.1:0",
             DefaultResolverTest {},
             "./src/rules/tests/rules/rcpt/rcpt.vsl",
-            "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             [
                 "HELO foobar\r\n",
@@ -41,7 +40,6 @@ pub mod test {
             "127.0.0.1:0",
             DefaultResolverTest {},
             "./src/rules/tests/rules/rcpt/rcpt.vsl",
-            "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             [
                 "HELO foobar\r\n",
@@ -69,7 +67,6 @@ pub mod test {
             "127.0.0.1:0",
             DefaultResolverTest {},
             "./src/rules/tests/rules/rcpt/rcpt.vsl",
-            "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             [
                 "HELO foobar\r\n",
@@ -94,7 +91,6 @@ pub mod test {
             "127.0.0.1:0",
             DefaultResolverTest {},
             "./src/rules/tests/rules/rcpt/rcpt.vsl",
-            "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             [
                 "HELO foobar\r\n",
@@ -122,7 +118,6 @@ pub mod test {
             "127.0.0.1:0",
             DefaultResolverTest {},
             "./src/rules/tests/rules/rcpt/rcpt.vsl",
-            "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             [
                 "HELO foobar\r\n",
@@ -150,7 +145,6 @@ pub mod test {
             "127.0.0.1:0",
             DefaultResolverTest {},
             "./src/rules/tests/rules/rcpt/contains_rcpt.vsl",
-            "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             [
                 "HELO foobar\r\n",
@@ -179,7 +173,6 @@ pub mod test {
             "127.0.0.1:0",
             DefaultResolverTest {},
             "./src/rules/tests/rules/rcpt/contains_rcpt.vsl",
-            "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             [
                 "HELO foobar\r\n",
@@ -263,7 +256,6 @@ pub mod test {
             "127.0.0.1:0",
             TestRcptAdded {},
             "./src/rules/tests/rules/rcpt/add_rcpt.vsl",
-            "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             [
                 "HELO foobar\r\n",
@@ -345,7 +337,6 @@ pub mod test {
             "127.0.0.1:0",
             TestRcptRemoved {},
             "./src/rules/tests/rules/rcpt/rm_rcpt.vsl",
-            "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             [
                 "HELO foobar\r\n",
@@ -434,7 +425,6 @@ pub mod test {
             "127.0.0.1:0",
             TestRcptRewritten {},
             "./src/rules/tests/rules/rcpt/rw_rcpt.vsl",
-            "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             [
                 "HELO foobar\r\n",

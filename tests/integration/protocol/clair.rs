@@ -1,9 +1,8 @@
 #[cfg(test)]
 mod tests {
 
-    use crate::integration::protocol::get_test_config;
     use vsmtp::{
-        config::server_config::{InnerSMTPConfig, InnerTlsConfig, ServerConfig, TlsSecurityLevel},
+        config::server_config::{ServerConfig, TlsSecurityLevel},
         model::mail::{Body, MailContext},
         resolver::Resolver,
         rules::address::Address,
@@ -11,6 +10,18 @@ mod tests {
     };
 
     // see https://datatracker.ietf.org/doc/html/rfc5321#section-4.3.2
+
+    fn get_regular_config() -> ServerConfig {
+        ServerConfig::builder()
+            .with_server_default_port("test.server.com")
+            .without_log()
+            .without_smtps()
+            .with_default_smtp()
+            .with_delivery("./tmp/delivery", vsmtp::collection! {})
+            .with_rules("./tmp/nothing")
+            .with_default_reply_codes()
+            .build()
+    }
 
     #[tokio::test]
     async fn test_receiver_1() {
@@ -59,7 +70,7 @@ mod tests {
             ]
             .concat()
             .as_bytes(),
-            get_test_config(),
+            std::sync::Arc::new(get_regular_config()),
         )
         .await
         .is_ok());
@@ -77,7 +88,7 @@ mod tests {
             ]
             .concat()
             .as_bytes(),
-            get_test_config()
+            std::sync::Arc::new(get_regular_config()),
         )
         .await
         .is_ok());
@@ -95,7 +106,7 @@ mod tests {
             ]
             .concat()
             .as_bytes(),
-            get_test_config()
+            std::sync::Arc::new(get_regular_config()),
         )
         .await
         .is_ok());
@@ -113,7 +124,7 @@ mod tests {
             ]
             .concat()
             .as_bytes(),
-            get_test_config()
+            std::sync::Arc::new(get_regular_config()),
         )
         .await
         .is_ok());
@@ -134,7 +145,7 @@ mod tests {
             ]
             .concat()
             .as_bytes(),
-            get_test_config()
+            std::sync::Arc::new(get_regular_config()),
         )
         .await
         .is_ok());
@@ -153,7 +164,7 @@ mod tests {
             ]
             .concat()
             .as_bytes(),
-            get_test_config()
+            std::sync::Arc::new(get_regular_config()),
         )
         .await
         .is_ok());
@@ -193,16 +204,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_receiver_8() {
-        let mut config = ServerConfig {
-            domain: "test.server.com".to_string(),
-            tls: InnerTlsConfig {
-                security_level: TlsSecurityLevel::Encrypt,
-                ..ServerConfig::default().tls
-            },
-            ..ServerConfig::default()
-        };
-        config.prepare();
-
         assert!(test_receiver(
             "127.0.0.1:0",
             DefaultResolverTest,
@@ -210,9 +211,8 @@ mod tests {
                 .concat()
                 .as_bytes(),
             [
-                // FIXME:
-                "220 {domain} Service ready\r\n",
-                "250-{domain}\r\n",
+                "220 test.server.com Service ready\r\n",
+                "250-test.server.com\r\n",
                 "250-8BITMIME\r\n",
                 "250-SMTPUTF8\r\n",
                 "250 STARTTLS\r\n",
@@ -221,7 +221,17 @@ mod tests {
             ]
             .concat()
             .as_bytes(),
-            std::sync::Arc::new(config)
+            std::sync::Arc::new(
+                ServerConfig::builder()
+                    .with_server_default_port("test.server.com")
+                    .without_log()
+                    .with_safe_default_smtps(TlsSecurityLevel::Encrypt, "dummy", "dummy", None)
+                    .with_default_smtp()
+                    .with_delivery("./tmp/delivery", vsmtp::collection! {})
+                    .with_rules("./tmp/nothing")
+                    .with_default_reply_codes()
+                    .build()
+            )
         )
         .await
         .is_ok());
@@ -261,7 +271,7 @@ mod tests {
             ]
             .concat()
             .as_bytes(),
-            get_test_config(),
+            std::sync::Arc::new(get_regular_config()),
         )
         .await;
 
@@ -273,28 +283,27 @@ mod tests {
 
     #[tokio::test]
     async fn test_receiver_10() {
-        let mut config = ServerConfig {
-            domain: "test.server.com".to_string(),
-            tls: InnerTlsConfig {
-                security_level: TlsSecurityLevel::Encrypt,
-                ..ServerConfig::default().tls
-            },
-            ..ServerConfig::default()
-        };
-        config.prepare();
-
         assert!(test_receiver(
             "127.0.0.1:0",
             DefaultResolverTest,
             ["HELP\r\n"].concat().as_bytes(),
             [
-                // FIXME:
-                "220 {domain} Service ready\r\n",
+                "220 test.server.com Service ready\r\n",
                 "214 joining us https://viridit.com/support\r\n",
             ]
             .concat()
             .as_bytes(),
-            std::sync::Arc::new(config)
+            std::sync::Arc::new(
+                ServerConfig::builder()
+                    .with_server_default_port("test.server.com")
+                    .without_log()
+                    .with_safe_default_smtps(TlsSecurityLevel::Encrypt, "dummy", "dummy", None)
+                    .with_default_smtp()
+                    .with_delivery("./tmp/delivery", vsmtp::collection! {})
+                    .with_rules("./tmp/nothing")
+                    .with_default_reply_codes()
+                    .build()
+            )
         )
         .await
         .is_ok());
@@ -328,7 +337,7 @@ mod tests {
             ]
             .concat()
             .as_bytes(),
-            get_test_config()
+            std::sync::Arc::new(get_regular_config()),
         )
         .await
         .is_ok());
@@ -362,7 +371,7 @@ mod tests {
             ]
             .concat()
             .as_bytes(),
-            get_test_config()
+            std::sync::Arc::new(get_regular_config()),
         )
         .await
         .is_ok());
@@ -370,22 +379,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_receiver_12() {
-        let mut config = ServerConfig {
-            domain: "test.server.com".to_string(),
-            smtp: InnerSMTPConfig {
-                disable_ehlo: true,
-                ..ServerConfig::default().smtp
-            },
-            ..ServerConfig::default()
-        };
-        config.prepare();
+        let mut config = get_regular_config();
+        config.smtp.disable_ehlo = true;
+
         assert!(test_receiver(
             "127.0.0.1:0",
             DefaultResolverTest,
             ["EHLO postmaster\r\n"].concat().as_bytes(),
             [
-                // FIXME:
-                "220 {domain} Service ready\r\n",
+                "220 test.server.com Service ready\r\n",
                 "502 Command not implemented\r\n",
             ]
             .concat()
@@ -474,7 +476,7 @@ mod tests {
             ]
             .concat()
             .as_bytes(),
-            get_test_config(),
+            std::sync::Arc::new(get_regular_config()),
         )
         .await
         .is_ok());
@@ -560,7 +562,7 @@ mod tests {
             ]
             .concat()
             .as_bytes(),
-            get_test_config(),
+            std::sync::Arc::new(get_regular_config()),
         )
         .await
         .is_ok());

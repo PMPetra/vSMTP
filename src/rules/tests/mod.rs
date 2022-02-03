@@ -10,6 +10,7 @@ mod users;
 #[cfg(test)]
 pub mod helpers {
     use crate::{
+        collection,
         config::{get_logger_config, server_config::ServerConfig},
         resolver::Resolver,
         rules::rule_engine::{RhaiEngine, Status, DEFAULT_SCOPE, RHAI_ENGINE},
@@ -63,7 +64,6 @@ pub mod helpers {
         address: &str,
         resolver: T,
         src_path: &str,
-        config_path: &str,
         users: users::mock::MockUsers,
         smtp_input: &[u8],
         expected_output: &[u8],
@@ -71,11 +71,18 @@ pub mod helpers {
     where
         T: Resolver + Send + Sync + 'static,
     {
-        let mut config: ServerConfig = toml::from_str(
-            &std::fs::read_to_string(config_path).expect("failed to read config from file"),
-        )
-        .unwrap();
-        config.prepare();
+        let config = ServerConfig::builder()
+            .with_server_default_port("test.server.com")
+            .with_logging(
+                "./tests/generated/output.log",
+                collection! {"default".to_string() => log::LevelFilter::Error},
+            )
+            .without_smtps()
+            .with_default_smtp()
+            .with_delivery("./tests/generated/spool/", collection! {})
+            .with_rules(src_path)
+            .with_default_reply_codes()
+            .build();
 
         // init logs once.
         INIT.call_once(|| {

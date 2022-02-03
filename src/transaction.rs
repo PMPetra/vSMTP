@@ -138,20 +138,22 @@ impl Transaction<'_> {
                 }
             }
 
-            (StateSMTP::Helo, Event::StartTls)
-                if conn.config.tls.security_level != TlsSecurityLevel::None =>
-            {
-                ProcessedEvent::ReplyChangeState(StateSMTP::NegotiationTLS, SMTPReplyCode::Code220)
-            }
-            (StateSMTP::Helo, Event::StartTls)
-                if conn.config.tls.security_level == TlsSecurityLevel::None =>
-            {
-                ProcessedEvent::Reply(SMTPReplyCode::Code454)
+            (StateSMTP::Helo, Event::StartTls) => {
+                match conn.config.tls.as_ref().map(|smtps| smtps.security_level) {
+                    None | Some(TlsSecurityLevel::None) => {
+                        ProcessedEvent::Reply(SMTPReplyCode::Code454)
+                    }
+                    _ => ProcessedEvent::ReplyChangeState(
+                        StateSMTP::NegotiationTLS,
+                        SMTPReplyCode::Code220,
+                    ),
+                }
             }
 
             (StateSMTP::Helo, Event::MailCmd(_, _))
-                if conn.config.tls.security_level == TlsSecurityLevel::Encrypt
-                    && !conn.is_secured =>
+                if !conn.is_secured
+                    && conn.config.tls.as_ref().map(|smtps| smtps.security_level)
+                        == Some(TlsSecurityLevel::Encrypt) =>
             {
                 ProcessedEvent::Reply(SMTPReplyCode::Code530)
             }
@@ -184,9 +186,7 @@ impl Transaction<'_> {
                     Status::Deny => {
                         ProcessedEvent::ReplyChangeState(StateSMTP::Stop, SMTPReplyCode::Code554)
                     }
-                    _ if self.mail.envelop.rcpt.len()
-                        >= conn.config.smtp.rcpt_count_max.unwrap_or(usize::MAX) =>
-                    {
+                    _ if self.mail.envelop.rcpt.len() >= conn.config.smtp.rcpt_count_max => {
                         ProcessedEvent::ReplyChangeState(
                             StateSMTP::RcptTo,
                             SMTPReplyCode::Code452TooManyRecipients,
@@ -403,9 +403,8 @@ impl Transaction<'_> {
             config
                 .smtp
                 .timeout_client
-                .as_ref()
-                .map(|map| map.get(state).map(|t| t.alias))
-                .flatten()
+                .get(state)
+                .map(|t| t.alias)
                 .unwrap_or_else(|| std::time::Duration::from_millis(TIMEOUT_DEFAULT))
         }
 

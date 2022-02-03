@@ -105,7 +105,7 @@ where
                 &mut resolvers,
                 &std::path::PathBuf::from_iter([
                     Queue::Deliver
-                        .to_path(&config_deliver.smtp.spool_dir)
+                        .to_path(&config_deliver.delivery.spool_dir)
                         .unwrap(),
                     std::path::Path::new(&pm.message_id).to_path_buf(),
                 ]),

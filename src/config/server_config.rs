@@ -14,37 +14,36 @@
  * this program. If not, see https://www.gnu.org/licenses/.
  *
 **/
-// TODO: have a ConfigBuilder struct
 use serde_with::{serde_as, DisplayFromStr};
 
-use crate::smtp::state::StateSMTP;
+use crate::smtp::{code::SMTPReplyCode, state::StateSMTP};
 
-use super::{
-    custom_code::{CustomSMTPCode, SMTPCode},
-    default::DEFAULT_CONFIG,
-};
-
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct InnerServerConfig {
+    pub domain: String,
+    #[serde(default = "InnerServerConfig::default_addr")]
     pub addr: std::net::SocketAddr,
+    #[serde(default = "InnerServerConfig::default_addr_submission")]
     pub addr_submission: std::net::SocketAddr,
+    #[serde(default = "InnerServerConfig::default_addr_submissions")]
     pub addr_submissions: std::net::SocketAddr,
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct InnerLogConfig {
+    #[serde(default = "InnerLogConfig::default_file")]
     pub file: String,
     pub level: std::collections::HashMap<String, log::LevelFilter>,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub enum TlsSecurityLevel {
     None,
     May,
     Encrypt,
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct SniKey {
     pub domain: String,
     pub private_key: String,
@@ -56,93 +55,10 @@ pub struct SniKey {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProtocolVersion(pub rustls::ProtocolVersion);
 
-/// ```
-/// use vsmtp::config::server_config::ProtocolVersion;
-/// use vsmtp::config::server_config::ProtocolVersionRequirement;
-///
-/// #[derive(Debug, serde::Deserialize)]
-/// struct S {
-///     v: ProtocolVersionRequirement,
-/// }
-///
-/// let s = toml::from_str::<S>("v = \"SSLv2\"").unwrap();
-/// assert_eq!(s.v.0, vec![ProtocolVersion(rustls::ProtocolVersion::SSLv2)]);
-/// let s = toml::from_str::<S>("v = \"0x0200\"").unwrap();
-/// assert_eq!(s.v.0, vec![ProtocolVersion(rustls::ProtocolVersion::SSLv2)]);
-///
-/// let s = toml::from_str::<S>("v = \"SSLv3\"").unwrap();
-/// assert_eq!(s.v.0, vec![ProtocolVersion(rustls::ProtocolVersion::SSLv3)]);
-/// let s = toml::from_str::<S>("v = \"0x0300\"").unwrap();
-/// assert_eq!(s.v.0, vec![ProtocolVersion(rustls::ProtocolVersion::SSLv3)]);
-///
-/// let s = toml::from_str::<S>("v = \"TLSv1.0\"").unwrap();
-/// assert_eq!(s.v.0, vec![ProtocolVersion(rustls::ProtocolVersion::TLSv1_0)]);
-/// let s = toml::from_str::<S>("v = \"0x0301\"").unwrap();
-/// assert_eq!(s.v.0, vec![ProtocolVersion(rustls::ProtocolVersion::TLSv1_0)]);
-///
-/// let s = toml::from_str::<S>("v = \"TLSv1.1\"").unwrap();
-/// assert_eq!(s.v.0, vec![ProtocolVersion(rustls::ProtocolVersion::TLSv1_1)]);
-/// let s = toml::from_str::<S>("v = \"0x0302\"").unwrap();
-/// assert_eq!(s.v.0, vec![ProtocolVersion(rustls::ProtocolVersion::TLSv1_1)]);
-///
-/// let s = toml::from_str::<S>("v = \"TLSv1.2\"").unwrap();
-/// assert_eq!(s.v.0, vec![ProtocolVersion(rustls::ProtocolVersion::TLSv1_2)]);
-/// let s = toml::from_str::<S>("v = \"0x0303\"").unwrap();
-/// assert_eq!(s.v.0, vec![ProtocolVersion(rustls::ProtocolVersion::TLSv1_2)]);
-///
-/// let s = toml::from_str::<S>("v = \"TLSv1.3\"").unwrap();
-/// assert_eq!(s.v.0, vec![ProtocolVersion(rustls::ProtocolVersion::TLSv1_3)]);
-/// let s = toml::from_str::<S>("v = \"0x0304\"").unwrap();
-/// assert_eq!(s.v.0, vec![ProtocolVersion(rustls::ProtocolVersion::TLSv1_3)]);
-/// ```
-///
-/// ```
-/// use vsmtp::config::server_config::ProtocolVersion;
-/// use vsmtp::config::server_config::ProtocolVersionRequirement;
-///
-/// #[derive(Debug, serde::Deserialize)]
-/// struct S {
-///     v: ProtocolVersionRequirement,
-/// }
-///
-/// let s = toml::from_str::<S>("v = [\"TLSv1.1\", \"TLSv1.2\", \"TLSv1.3\"]").unwrap();
-/// assert_eq!(s.v.0, vec![
-///     ProtocolVersion(rustls::ProtocolVersion::TLSv1_1),
-///     ProtocolVersion(rustls::ProtocolVersion::TLSv1_2),
-///     ProtocolVersion(rustls::ProtocolVersion::TLSv1_3),
-/// ]);
-/// ```
-///
-/// ```
-/// use vsmtp::config::server_config::ProtocolVersion;
-/// use vsmtp::config::server_config::ProtocolVersionRequirement;
-///
-/// #[derive(Debug, serde::Deserialize)]
-/// struct S {
-///     v: ProtocolVersionRequirement,
-/// }
-///
-/// let s = toml::from_str::<S>("v = \"^TLSv1.1\"").unwrap();
-/// assert_eq!(s.v.0, vec![
-///     ProtocolVersion(rustls::ProtocolVersion::TLSv1_1),
-///     ProtocolVersion(rustls::ProtocolVersion::TLSv1_2),
-///     ProtocolVersion(rustls::ProtocolVersion::TLSv1_3),
-/// ]);
-///
-/// let s = toml::from_str::<S>("v = \">=SSLv3\"").unwrap();
-/// assert_eq!(s.v.0, vec![
-///     ProtocolVersion(rustls::ProtocolVersion::SSLv3),
-///     ProtocolVersion(rustls::ProtocolVersion::TLSv1_0),
-///     ProtocolVersion(rustls::ProtocolVersion::TLSv1_1),
-///     ProtocolVersion(rustls::ProtocolVersion::TLSv1_2),
-///     ProtocolVersion(rustls::ProtocolVersion::TLSv1_3),
-/// ]);
-///
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ProtocolVersionRequirement(pub Vec<ProtocolVersion>);
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct InnerTlsConfig {
     pub security_level: TlsSecurityLevel,
     pub protocol_version: ProtocolVersionRequirement,
@@ -155,7 +71,7 @@ pub struct InnerTlsConfig {
     pub sni_maps: Option<Vec<SniKey>>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct InnerSMTPErrorConfig {
     pub soft_count: i64,
     pub hard_count: i64,
@@ -163,7 +79,7 @@ pub struct InnerSMTPErrorConfig {
     pub delay: std::time::Duration,
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(transparent)]
 pub struct DurationAlias {
     #[serde(with = "humantime_serde")]
@@ -171,35 +87,22 @@ pub struct DurationAlias {
 }
 
 #[serde_as]
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct InnerSMTPConfig {
-    pub spool_dir: String,
     pub disable_ehlo: bool,
     #[serde(default)]
-    #[serde_as(as = "Option<std::collections::HashMap<DisplayFromStr, _>>")]
-    pub timeout_client: Option<std::collections::HashMap<StateSMTP, DurationAlias>>,
+    #[serde_as(as = "std::collections::HashMap<DisplayFromStr, _>")]
+    pub timeout_client: std::collections::HashMap<StateSMTP, DurationAlias>,
     pub error: InnerSMTPErrorConfig,
-    pub code: Option<SMTPCode>,
-    pub rcpt_count_max: Option<usize>,
+    pub rcpt_count_max: usize,
 }
 
-impl InnerSMTPConfig {
-    pub fn get_code(&self) -> &CustomSMTPCode {
-        match self.code.as_ref() {
-            None | Some(SMTPCode::Raw(_)) => {
-                panic!("@get_code must be called after a valid conversion from to raw")
-            }
-            Some(SMTPCode::Serialized(code)) => code.as_ref(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct InnerRulesConfig {
     pub dir: String,
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct QueueConfig {
     pub capacity: Option<usize>,
     pub retry_max: Option<usize>,
@@ -207,50 +110,25 @@ pub struct QueueConfig {
     pub cron_period: Option<std::time::Duration>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct InnerDeliveryConfig {
-    pub queue: std::collections::HashMap<String, QueueConfig>,
+    pub spool_dir: String,
+    pub queues: std::collections::HashMap<String, QueueConfig>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(transparent)]
+pub struct Codes {
+    pub codes: std::collections::HashMap<SMTPReplyCode, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServerConfig {
-    pub domain: String,
     pub server: InnerServerConfig,
     pub log: InnerLogConfig,
-    pub tls: InnerTlsConfig,
+    pub tls: Option<InnerTlsConfig>,
     pub smtp: InnerSMTPConfig,
-    pub rules: InnerRulesConfig,
     pub delivery: InnerDeliveryConfig,
-}
-
-impl Default for ServerConfig {
-    fn default() -> Self {
-        DEFAULT_CONFIG.clone()
-    }
-}
-
-impl ServerConfig {
-    pub fn prepare(&mut self) -> &Self {
-        self.prepare_inner(false)
-    }
-
-    pub fn prepare_default(&mut self) -> &Self {
-        self.prepare_inner(true)
-    }
-
-    fn prepare_inner(&mut self, prepare_for_default: bool) -> &Self {
-        self.smtp.code =
-            Some(match &self.smtp.code {
-                Some(SMTPCode::Raw(raw)) => SMTPCode::Serialized(Box::new(
-                    CustomSMTPCode::from_raw(raw, self, prepare_for_default),
-                )),
-                None => SMTPCode::Serialized(Box::new(CustomSMTPCode::from_raw(
-                    &std::collections::HashMap::<_, _>::new(),
-                    self,
-                    prepare_for_default,
-                ))),
-                Some(SMTPCode::Serialized(c)) => SMTPCode::Serialized(c.clone()),
-            });
-        self
-    }
+    pub rules: InnerRulesConfig,
+    pub reply_codes: Codes,
 }

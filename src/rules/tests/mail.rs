@@ -14,7 +14,6 @@ pub mod test {
             "127.0.0.1:0",
             DefaultResolverTest {},
             "./src/rules/tests/rules/mail/mail.vsl",
-            "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             ["HELO foobar\r\n", "MAIL FROM:<johndoe@test.com>\r\n",]
                 .concat()
@@ -34,7 +33,6 @@ pub mod test {
             "127.0.0.1:0",
             DefaultResolverTest {},
             "./src/rules/tests/rules/mail/mail.vsl",
-            "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             ["HELO foobar\r\n", "MAIL FROM:<unknown@test.com>\r\n",]
                 .concat()
@@ -57,7 +55,6 @@ pub mod test {
             "127.0.0.1:0",
             DefaultResolverTest {},
             "./src/rules/tests/rules/mail/mail.vsl",
-            "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             ["HELO foobar\r\n", "MAIL FROM:<johndoe@viridit.com>\r\n",]
                 .concat()
@@ -77,7 +74,6 @@ pub mod test {
             "127.0.0.1:0",
             DefaultResolverTest {},
             "./src/rules/tests/rules/mail/mail.vsl",
-            "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             ["HELO foobar\r\n", "MAIL FROM:<user@unknown.com>\r\n",]
                 .concat()
@@ -100,7 +96,6 @@ pub mod test {
             "127.0.0.1:0",
             DefaultResolverTest {},
             "./src/rules/tests/rules/mail/mail.vsl",
-            "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             ["HELO foobar\r\n", "MAIL FROM:<customer@company.com>\r\n",]
                 .concat()
@@ -120,7 +115,6 @@ pub mod test {
             "127.0.0.1:0",
             DefaultResolverTest {},
             "./src/rules/tests/rules/mail/mail.vsl",
-            "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             [
                 "HELO foobar\r\n",
@@ -175,7 +169,6 @@ pub mod test {
             "127.0.0.1:0",
             TestRewritten {},
             "./src/rules/tests/rules/mail/rw_mail.vsl",
-            "./src/rules/tests/configs/default.config.toml",
             users::mock::MockUsers::with_current_uid(1),
             [
                 "HELO foobar\r\n",

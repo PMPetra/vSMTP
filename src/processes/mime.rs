@@ -53,7 +53,7 @@ pub(crate) async fn handle_one_in_working_queue(
     );
 
     let file_to_process = Queue::Working
-        .to_path(&config.smtp.spool_dir)?
+        .to_path(&config.delivery.spool_dir)?
         .join(&process_message.message_id);
 
     log::debug!(target: DELIVER, "vMIME opening file: {:?}", file_to_process);
