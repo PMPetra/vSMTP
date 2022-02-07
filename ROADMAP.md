@@ -1,7 +1,6 @@
 # vSMTP standard edition roadmap
 
 > Release before 1.0 should not be used for production purpose.
-
 For the enhanced edition roadmap, please feel free to contact us at
 <https://www.viridit.com/contact>.
 
