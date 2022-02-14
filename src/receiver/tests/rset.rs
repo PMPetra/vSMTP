@@ -22,18 +22,17 @@ use crate::{
     smtp::mail::{Body, MailContext},
 };
 
-fn get_regular_config() -> std::sync::Arc<ServerConfig> {
-    std::sync::Arc::new(
-        ServerConfig::builder()
-            .with_rfc_port("test.server.com", None)
-            .without_log()
-            .without_smtps()
-            .with_default_smtp()
-            .with_delivery("./tmp/delivery", crate::collection! {})
-            .with_rules("./tmp/nothing")
-            .with_default_reply_codes()
-            .build(),
-    )
+fn get_regular_config() -> ServerConfig {
+    ServerConfig::builder()
+        .with_rfc_port("test.server.com", None)
+        .without_log()
+        .without_smtps()
+        .with_default_smtp()
+        .with_delivery("./tmp/delivery", crate::collection! {})
+        .with_rules("./tmp/nothing")
+        .with_default_reply_codes()
+        .build()
+        .unwrap()
 }
 
 #[tokio::test]
@@ -83,7 +82,7 @@ async fn test_receiver_rset_1() {
         ]
         .concat()
         .as_bytes(),
-        get_regular_config()
+        std::sync::Arc::new(get_regular_config())
     )
     .await
     .is_ok());
@@ -111,7 +110,7 @@ async fn test_receiver_rset_2() {
         ]
         .concat()
         .as_bytes(),
-        get_regular_config()
+        std::sync::Arc::new(get_regular_config())
     )
     .await
     .is_ok());
@@ -141,7 +140,7 @@ async fn test_receiver_rset_3() {
         ]
         .concat()
         .as_bytes(),
-        get_regular_config()
+        std::sync::Arc::new(get_regular_config())
     )
     .await
     .is_ok());
@@ -193,7 +192,7 @@ async fn test_receiver_rset_4() {
         ]
         .concat()
         .as_bytes(),
-        get_regular_config()
+        std::sync::Arc::new(get_regular_config())
     )
     .await
     .is_ok());
@@ -243,7 +242,7 @@ async fn test_receiver_rset_5() {
         ]
         .concat()
         .as_bytes(),
-        get_regular_config()
+        std::sync::Arc::new(get_regular_config())
     )
     .await
     .is_ok());
@@ -304,7 +303,7 @@ async fn test_receiver_rset_6() {
         ]
         .concat()
         .as_bytes(),
-        get_regular_config()
+        std::sync::Arc::new(get_regular_config())
     )
     .await
     .is_ok());
