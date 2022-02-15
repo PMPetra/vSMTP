@@ -1,5 +1,3 @@
-use anyhow::Context;
-
 /**
  * vSMTP mail transfer agent
  * Copyright (C) 2022 viridIT SAS
@@ -89,16 +87,23 @@ where
     let mut written_data = Vec::new();
     let mut mock = Mock::new(std::io::Cursor::new(smtp_input.to_vec()), &mut written_data);
     let mut io = IoService::new(&mut mock);
-    let mut conn = Connection::from_plain(
-        ConnectionKind::Opportunistic,
-        address.parse().unwrap(),
-        config.clone(),
-        &mut io,
+    let mut conn = anyhow::Context::context(
+        Connection::from_plain(
+            ConnectionKind::Opportunistic,
+            address.parse().unwrap(),
+            config.clone(),
+            &mut io,
+        ),
+        "failed to initialize connection",
     )
-    .context("failed to initialize connection")?;
+    .unwrap();
 
     let rule_engine = std::sync::Arc::new(std::sync::RwLock::new(
-        RuleEngine::new(config.rules.dir.as_str()).context("failed to initialize the engine")?,
+        anyhow::Context::context(
+            RuleEngine::new(config.rules.dir.as_str()),
+            "failed to initialize the engine",
+        )
+        .unwrap(),
     ));
 
     let (working_sender, mut working_receiver) = tokio::sync::mpsc::channel::<ProcessMessage>(10);
