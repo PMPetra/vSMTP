@@ -297,8 +297,8 @@ async fn test_receiver_9() {
 }
 
 #[tokio::test]
-async fn test_receiver_10() -> anyhow::Result<()> {
-    assert!(test_receiver(
+async fn test_receiver_10() {
+    match test_receiver(
         "127.0.0.1:0",
         DefaultResolverTest,
         ["HELP\r\n"].concat().as_bytes(),
@@ -317,12 +317,17 @@ async fn test_receiver_10() -> anyhow::Result<()> {
                 .with_delivery("./tmp/delivery", crate::collection! {})
                 .with_rules("./tmp/nothing")
                 .with_default_reply_codes()
-                .build()?
-        )
+                .build()
+                .expect("could not build the server config"),
+        ),
     )
     .await
-    .is_ok());
-    Ok(())
+    {
+        Ok(_) => {}
+        Err(err) => {
+            panic!("{}", err)
+        }
+    };
 }
 
 #[tokio::test]
@@ -432,7 +437,7 @@ async fn test_receiver_13() {
                         std::collections::HashSet::from([Address::new("aa@bb").unwrap()])
                     );
                     assert!(match &ctx.body {
-                        Body::Parsed(body) => body.headers.is_empty(),
+                        Body::Parsed(body) => body.headers.len() == 2,
                         _ => false,
                     });
                     assert!(ctx.metadata.is_some());
@@ -445,7 +450,7 @@ async fn test_receiver_13() {
                         std::collections::HashSet::from([Address::new("aa2@bb").unwrap()])
                     );
                     assert!(match &ctx.body {
-                        Body::Parsed(body) => body.headers.is_empty(),
+                        Body::Parsed(body) => body.headers.len() == 2,
                         _ => false,
                     });
                 }
@@ -466,11 +471,15 @@ async fn test_receiver_13() {
             "MAIL FROM:<john@doe>\r\n",
             "RCPT TO:<aa@bb>\r\n",
             "DATA\r\n",
+            "from: john doe <john@doe>\r\n",
+            "date: tue, 30 nov 2021 20:54:27 +0100\r\n",
             "mail one\r\n",
             ".\r\n",
             "MAIL FROM:<john2@doe>\r\n",
             "RCPT TO:<aa2@bb>\r\n",
             "DATA\r\n",
+            "from: john2 doe <john2@doe>\r\n",
+            "date: tue, 30 nov 2021 20:54:27 +0100\r\n",
             "mail two\r\n",
             ".\r\n",
             "QUIT\r\n",
@@ -516,7 +525,7 @@ async fn test_receiver_14() {
                         std::collections::HashSet::from([Address::new("aa@bb").unwrap()])
                     );
                     assert!(match &ctx.body {
-                        Body::Parsed(body) => body.headers.is_empty(),
+                        Body::Parsed(body) => body.headers.len() == 2,
                         _ => false,
                     });
                 }
@@ -528,7 +537,7 @@ async fn test_receiver_14() {
                         std::collections::HashSet::from([Address::new("aa2@bb").unwrap()])
                     );
                     assert!(match &ctx.body {
-                        Body::Parsed(body) => body.headers.is_empty(),
+                        Body::Parsed(body) => body.headers.len() == 2,
                         _ => false,
                     });
                     assert!(ctx.metadata.is_some());
@@ -550,12 +559,16 @@ async fn test_receiver_14() {
             "MAIL FROM:<john@doe>\r\n",
             "RCPT TO:<aa@bb>\r\n",
             "DATA\r\n",
+            "from: john doe <john@doe>\r\n",
+            "date: tue, 30 nov 2021 20:54:27 +0100\r\n",
             "mail one\r\n",
             ".\r\n",
             "HELO foobar2\r\n",
             "MAIL FROM:<john2@doe>\r\n",
             "RCPT TO:<aa2@bb>\r\n",
             "DATA\r\n",
+            "from: john2 doe <john2@doe>\r\n",
+            "date: tue, 30 nov 2021 20:54:27 +0100\r\n",
             "mail two\r\n",
             ".\r\n",
             "QUIT\r\n",
