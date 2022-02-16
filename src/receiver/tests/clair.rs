@@ -31,7 +31,7 @@ fn get_regular_config() -> anyhow::Result<ServerConfig> {
         .without_smtps()
         .with_default_smtp()
         .with_delivery("./tmp/delivery", crate::collection! {})
-        .with_rules("./tmp/nothing")
+        .with_rules("./tmp/nothing", vec![])
         .with_default_reply_codes()
         .build()
 }
@@ -202,7 +202,7 @@ async fn test_receiver_10() {
                 .with_safe_default_smtps(TlsSecurityLevel::Encrypt, "dummy", "dummy", None)
                 .with_default_smtp()
                 .with_delivery("./tmp/delivery", crate::collection! {})
-                .with_rules("./tmp/nothing")
+                .with_rules("./tmp/nothing", vec![])
                 .with_default_reply_codes()
                 .build()
                 .expect("could not build the server config"),
