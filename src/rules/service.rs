@@ -51,8 +51,6 @@ impl Service {
                 group,
                 ..
             } => {
-                // TODO: CommandExt / uid/gid
-
                 let mut child = std::process::Command::new(command);
                 if let Some(args) = args {
                     let guard = ctx.read().expect("mutex is poisoned");
