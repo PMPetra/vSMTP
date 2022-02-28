@@ -48,7 +48,7 @@ async fn test_starttls(
 
         let rule_engine = std::sync::Arc::new(std::sync::RwLock::new(
             anyhow::Context::context(
-                RuleEngine::new(server_config.rules.dir.as_str()),
+                RuleEngine::new(server_config.rules.dir.clone()),
                 "failed to initialize the engine",
             )
             .unwrap(),
@@ -88,7 +88,7 @@ async fn test_starttls(
 
         let mut output = vec![];
 
-        let mut input = clair_smtp_input.to_vec().into_iter();
+        let mut input = clair_smtp_input.iter().copied();
 
         loop {
             match io.get_next_line_async().await {
@@ -117,7 +117,7 @@ async fn test_starttls(
 
         // TODO: assert on negotiated cipher ... ?
 
-        let mut input = secured_smtp_input.to_vec().into_iter();
+        let mut input = secured_smtp_input.iter().copied();
         match input.next() {
             Some(line) => std::io::Write::write_all(&mut io, line.as_bytes()).unwrap(),
             None => panic!(),
