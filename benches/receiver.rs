@@ -20,8 +20,10 @@ use criterion::{
     criterion_group, criterion_main, measurement::WallTime, Bencher, BenchmarkId, Criterion,
 };
 use vsmtp::{
-    config::server_config::ServerConfig, receiver::test_helpers::test_receiver, resolver::Resolver,
-    smtp::mail::MailContext, Address, Body, BodyType,
+    config::server_config::ServerConfig,
+    receiver::test_helpers::test_receiver,
+    resolver::{MailContext, Resolver},
+    Address, Body, BodyType,
 };
 
 #[derive(Clone)]

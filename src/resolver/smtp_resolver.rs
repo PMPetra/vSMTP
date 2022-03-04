@@ -1,5 +1,3 @@
-use super::Resolver;
-use crate::config::server_config::ServerConfig;
 /**
  * vSMTP mail transfer agent
  * Copyright (C) 2022 viridIT SAS
@@ -18,6 +16,9 @@ use crate::config::server_config::ServerConfig;
 **/
 use crate::smtp::mail::Body;
 use crate::smtp::mail::MailContext;
+
+use super::Resolver;
+use crate::config::server_config::ServerConfig;
 
 /// This delivery will send the mail to another MTA (relaying)
 #[derive(Default)]
