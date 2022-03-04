@@ -6,7 +6,9 @@
         "capath",
         "chrono",
         "cipherlist",
+        "ciphersuite",
         "clamav",
+        "cpus",
         "ehlo",
         "ENHANCEDSTATUSCODES",
         "Expn",
@@ -20,6 +22,8 @@
         "libmilter",
         "maildir",
         "nonblocking",
+        "ocsp",
+        "opentelemetry",
         "pemfile",
         "PKCS8",
         "postq",
@@ -29,9 +33,13 @@
         "roadmap",
         "Rset",
         "rustls",
+        "setgid",
         "setuid",
+        "SMTPS",
         "SMTPUTF",
         "STARTTLS",
+        "tabis",
+        "testserver",
         "unencrypted",
         "viridit",
         "vmta",
@@ -54,5 +62,8 @@
             "cursor": "pointer",
         }
     ],
-    "rust-analyzer.checkOnSave.command": "clippy"
+    "rust-analyzer.checkOnSave.command": "clippy",
+    "files.associations": {
+        "*.vsl": "rhai"
+    }
 }

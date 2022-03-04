@@ -1,6 +1,6 @@
 /**
  * vSMTP mail transfer agent
- * Copyright (C) 2021 viridIT SAS
+ * Copyright (C) 2022 viridIT SAS
  *
  * This program is free software: you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
@@ -14,43 +14,20 @@
  * this program. If not, see https://www.gnu.org/licenses/.
  *
 **/
-use crate::{
-    config::server_config::ServerConfig, model::mail::MailContext, smtp::code::SMTPReplyCode,
-};
+pub use crate::{config::server_config::ServerConfig, smtp::mail::MailContext};
 
+/// Protocol Maildir
 pub mod maildir_resolver;
+
+/// Protocol Mailbox
 pub mod mbox_resolver;
+
+/// Mail relaying
 pub mod smtp_resolver;
 
-#[async_trait::async_trait]
-pub trait DataEndResolver {
-    async fn on_data_end(
-        &mut self,
-        config: &ServerConfig,
-        mail: &MailContext,
-    ) -> anyhow::Result<SMTPReplyCode>;
-}
-
+/// A trait allowing the [ServerVSMTP] to deliver a mail
 #[async_trait::async_trait]
 pub trait Resolver {
-    async fn deliver(&self, config: &ServerConfig, mail: &MailContext) -> anyhow::Result<()>;
-}
-
-/// sets user & group rights to the given file / folder.
-fn chown_file(path: &std::path::Path, user: &users::User) -> std::io::Result<()> {
-    if unsafe {
-        libc::chown(
-            // NOTE: to_string_lossy().as_bytes() isn't the right way of converting a PathBuf
-            //       to a CString because it is platform independent.
-            std::ffi::CString::new(path.to_string_lossy().as_bytes())?.as_ptr(),
-            user.uid(),
-            user.uid(),
-        )
-    } != 0
-    {
-        log::error!("unable to setuid of user {:?}", user.name());
-        return Err(std::io::Error::last_os_error());
-    }
-
-    Ok(())
+    /// the deliver method of the [Resolver] trait
+    async fn deliver(&mut self, config: &ServerConfig, mail: &MailContext) -> anyhow::Result<()>;
 }

@@ -1,6 +1,6 @@
 /**
  * vSMTP mail transfer agent
- * Copyright (C) 2021 viridIT SAS
+ * Copyright (C) 2022 viridIT SAS
  *
  * This program is free software: you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
@@ -16,23 +16,25 @@
 **/
 use crate::{
     config::{log_channel::RESOLVER, server_config::ServerConfig},
-    model::mail::{Body, MailContext, MessageMetadata},
-    rules::{address::Address, rule_engine::user_exists},
+    my_libc::chown_file,
+    rules::address::Address,
+    smtp::mail::{Body, MailContext, MessageMetadata},
 };
 
 use super::Resolver;
 
+/// see https://en.wikipedia.org/wiki/Maildir
 #[derive(Default)]
 pub struct MailDirResolver;
 
 impl MailDirResolver {
     // getting user's home directory using getpwuid.
-    fn get_maildir_path(user: &std::sync::Arc<users::User>) -> anyhow::Result<std::path::PathBuf> {
+    fn get_maildir_path(user: &users::User) -> anyhow::Result<std::path::PathBuf> {
         let passwd = unsafe { libc::getpwuid(user.uid()) };
         if !passwd.is_null() && !unsafe { *passwd }.pw_dir.is_null() {
             unsafe { std::ffi::CStr::from_ptr((*passwd).pw_dir) }
                 .to_str()
-                .map(|path| std::path::PathBuf::from_iter([&path.to_string(), "Maildir", "new"]))
+                .map(|path| std::path::PathBuf::from_iter([path, "Maildir", "new"]))
                 .map_err(|error| {
                     anyhow::anyhow!("unable to get user's home directory: '{}'", error)
                 })
@@ -49,15 +51,16 @@ impl MailDirResolver {
         metadata: &MessageMetadata,
         content: &str,
     ) -> anyhow::Result<()> {
-        match crate::rules::rule_engine::get_user_by_name(rcpt.local_part()) {
+        // FIXME: use UsersCache.
+        match users::get_user_by_name(rcpt.local_part()) {
             Some(user) => {
                 let mut maildir = Self::get_maildir_path(&user)?;
 
                 // create and set rights for the MailDir folder if it doesn't exists.
                 if !maildir.exists() {
                     std::fs::create_dir_all(&maildir)?;
-                    super::chown_file(&maildir, &user)?;
-                    super::chown_file(
+                    chown_file(&maildir, &user)?;
+                    chown_file(
                         maildir
                             .parent()
                             .ok_or_else(|| anyhow::anyhow!("Maildir parent folder is missing."))?,
@@ -76,7 +79,7 @@ impl MailDirResolver {
 
                 std::io::Write::write_all(&mut email, content.as_bytes())?;
 
-                super::chown_file(&maildir, &user)?;
+                chown_file(&maildir, &user)?;
             }
             None => anyhow::bail!("unable to get user '{}' by name", rcpt.local_part()),
         }
@@ -94,7 +97,7 @@ impl MailDirResolver {
 
 #[async_trait::async_trait]
 impl Resolver for MailDirResolver {
-    async fn deliver(&self, _: &ServerConfig, mail: &MailContext) -> anyhow::Result<()> {
+    async fn deliver(&mut self, _: &ServerConfig, mail: &MailContext) -> anyhow::Result<()> {
         // NOTE: see https://docs.rs/tempfile/3.0.7/tempfile/index.html
         //       and https://en.wikipedia.org/wiki/Maildir
 
@@ -104,7 +107,7 @@ impl Resolver for MailDirResolver {
             .envelop
             .rcpt
             .iter()
-            .filter(|i| !user_exists(i.local_part()))
+            .filter(|i| users::get_user_by_name(i.local_part()).is_some())
             .collect::<Vec<_>>();
 
         if !not_local_users.is_empty() {
@@ -122,6 +125,9 @@ impl Resolver for MailDirResolver {
                 log::debug!(target: RESOLVER, "writing email to {}'s inbox.", rcpt);
 
                 match &mail.body {
+                    Body::Empty => {
+                        anyhow::bail!("failed to write email using maildir: body is empty")
+                    }
                     Body::Raw(content) => {
                         Self::write_to_maildir(rcpt, mail.metadata.as_ref().unwrap(), content)
                             .map_err(|error| {
@@ -133,7 +139,23 @@ impl Resolver for MailDirResolver {
                                 error
                             })?
                     }
-                    _ => todo!(),
+                    Body::Parsed(email) => {
+                        let (headers, body) = email.to_raw();
+
+                        Self::write_to_maildir(
+                            rcpt,
+                            mail.metadata.as_ref().unwrap(),
+                            format!("{headers}\n{body}").as_str(),
+                        )
+                        .map_err(|error| {
+                            log::error!(
+                                target: RESOLVER,
+                                "Couldn't write email to inbox: {:?}",
+                                error
+                            );
+                            error
+                        })?
+                    }
                 }
             }
             Ok(())

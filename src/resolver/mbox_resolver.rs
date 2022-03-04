@@ -1,6 +1,6 @@
 /**
  * vSMTP mail transfer agent
- * Copyright (C) 2021 viridIT SAS
+ * Copyright (C) 2022 viridIT SAS
  *
  * This program is free software: you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
@@ -16,7 +16,8 @@
 **/
 use crate::{
     config::{log_channel::RESOLVER, server_config::ServerConfig},
-    model::mail::MailContext,
+    my_libc::chown_file,
+    smtp::mail::{Body, MailContext},
 };
 
 use super::Resolver;
@@ -29,9 +30,10 @@ pub struct MBoxResolver;
 
 #[async_trait::async_trait]
 impl Resolver for MBoxResolver {
-    async fn deliver(&self, _: &ServerConfig, ctx: &MailContext) -> anyhow::Result<()> {
+    async fn deliver(&mut self, _: &ServerConfig, ctx: &MailContext) -> anyhow::Result<()> {
         for rcpt in ctx.envelop.rcpt.iter() {
-            match crate::rules::rule_engine::get_user_by_name(rcpt.local_part()) {
+            // FIXME: use UsersCache.
+            match users::get_user_by_name(rcpt.local_part()) {
                 Some(user) => {
                     let timestamp: chrono::DateTime<chrono::offset::Utc> = ctx
                         .metadata
@@ -42,10 +44,13 @@ impl Resolver for MBoxResolver {
                     let timestamp = timestamp.format("%c");
 
                     let content = match &ctx.body {
-                        crate::model::mail::Body::Raw(raw) => {
+                        Body::Empty => {
+                            anyhow::bail!("failed to write email using mbox: body is empty")
+                        }
+                        Body::Raw(raw) => {
                             format!("From {} {timestamp}\n{raw}\n", ctx.envelop.mail_from)
                         }
-                        crate::model::mail::Body::Parsed(parsed) => {
+                        Body::Parsed(parsed) => {
                             let (headers, body) = parsed.to_raw();
                             format!(
                                 "From {} {timestamp}\n{headers}\n\n{body}\n",
@@ -61,7 +66,7 @@ impl Resolver for MBoxResolver {
                         .create(true)
                         .append(true)
                         .open(&mbox)?;
-                    super::chown_file(&mbox, &user)?;
+                    chown_file(&mbox, &user)?;
 
                     std::io::Write::write_all(&mut file, content.as_bytes())?;
 

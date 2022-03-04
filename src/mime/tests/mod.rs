@@ -1,9 +1,29 @@
+/**
+ * vSMTP mail transfer agent
+ * Copyright (C) 2022 viridIT SAS
+ *
+ * This program is free software: you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or any later version.
+ *
+ *  This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program. If not, see https://www.gnu.org/licenses/.
+ *
+**/
 #[cfg(test)]
 pub mod mime_parser {
     use crate::mime::parser::MailMimeParser;
 
+    mod rfc5322;
+
     #[allow(non_snake_case)]
     mod allen_p__discussion_threads__1;
+
+    mod mime1;
 
     fn visit_dirs(
         dir: &std::path::Path,
@@ -40,14 +60,17 @@ pub mod mime_parser {
                     .open("tmp/generated/output.txt")
                     .unwrap();
 
-                let mail = std::fs::read_to_string(entry.path()).map_err(|e| {
-                    std::io::Write::write(
-                        &mut output,
-                        format!("reading failed: '{:?}' error: '{}'\n", entry.path(), e).as_bytes(),
-                    )
+                let mail = std::fs::read_to_string(entry.path())
+                    .map_err(|e| {
+                        std::io::Write::write(
+                            &mut output,
+                            format!("reading failed: '{:?}' error: '{}'\n", entry.path(), e)
+                                .as_bytes(),
+                        )
+                        .unwrap();
+                        e
+                    })
                     .unwrap();
-                    e
-                })?;
 
                 MailMimeParser::default()
                     .parse(mail.as_bytes())

@@ -1,0 +1,17 @@
+#{
+    connect: [
+        action "debug" || vsl::log("debug", "executing procedures in connect stage."),
+
+        action "log_incoming" || {
+            vsl::log("info", "incoming transaction.");
+            vsl::log("trace", `[${date}/${time}] client=${ctx.client_addr}`);
+        },
+
+        rule "stop" || {
+            vsl::log("warn", "running rule 'stop'.");
+            vsl::log("error", "current connexion denied.");
+            vsl::log("unknown", "this will be emited as a warning.");
+            vsl::deny()
+        },
+    ]
+}

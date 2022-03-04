@@ -1,39 +1,55 @@
-### See vsmtp.default.toml documentation for this file format
-
-domain = "testserver.com"
+version_requirement = ">=0.8.9, <1.0.0"
 
 [server]
+domain = "testserver.com"
 addr = "0.0.0.0:10025"
+addr_submission = "0.0.0.0:10587"
+addr_submissions = "0.0.0.0:10465"
+thread_count = 10
+vsmtp_user = "user"
+vsmtp_group = "user"
 
-[log]
+[logs]
 file = "./tmp/var/log/vsmtp/vsmtp.log"
 
-[log.level]
-default = "trace"
-receiver = "warn"
-resolver = "trace"
+[logs.level]
+default = "warn"
+receiver = "info"
+resolver = "warn"
 rules = "warn"
 
 [rules]
 dir = "./config/rules"
 
-[tls]
-security_level = "May"
-capath = "./config/certs"
-preempt_cipherlist = true
-handshake_timeout = "100ms"
-protocol_version = ["TLSv1.3"]
+[rules.logs]
+file = "./tmp/app.log"
+level = "trace"
+format = "{d} - {m}{n}"
 
-fullchain = "{capath}/certificate.crt"
-private_key = "{capath}/privateKey.key"
+[[rules.services]]
+name = "clamscan"
+type = "shell"
+timeout = "15s"
+command = "./config/rules/service/clamscan.sh"
+args = "{mail}"
 
-[[tls.sni_maps]]
-domain = "testserver.com"
-fullchain = "{capath}/fullchain.{domain}.pem"
-private_key = "{capath}/rsa.{domain}.pem"
+# [smtps]
+# security_level = "May"
+# capath = "./config/certs"
+# preempt_cipherlist = true
+# handshake_timeout = "100ms"
+# protocol_version = ["TLSv1.3"]
+#
+# fullchain = "{capath}/certificate.crt"
+# private_key = "{capath}/privateKey.key"
+#
+# [[smtps.sni_maps]]
+# domain = "testserver.com"
+# fullchain = "{capath}/fullchain.{domain}.pem"
+# private_key = "{capath}/rsa.{domain}.pem"
 
 [smtp]
-spool_dir = "./tmp/var/spool/vsmtp"
+client_count_max = 3
 rcpt_count_max = 25
 disable_ehlo = false
 
@@ -42,10 +58,14 @@ soft_count = 5
 hard_count = 10
 delay = "5000ms"
 
-[smtp.code]
+[reply_codes]
 Code214 = "214 my custom help message\r\n"
+Code220 = "220 {domain} ESMTP Service ready\r\n"
 
-[delivery.queue]
+[delivery]
+spool_dir = "./tmp/var/spool/vsmtp"
+
+[delivery.queues]
 working = { capacity = 32 }
 deliver = { capacity = 32 }
 deferred = { retry_max = 10, cron_period = "10s" }

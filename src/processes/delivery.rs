@@ -1,7 +1,6 @@
-use super::ProcessMessage;
 /**
  * vSMTP mail transfer agent
- * Copyright (C) 2021 viridIT SAS
+ * Copyright (C) 2022 viridIT SAS
  *
  * This program is free software: you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
@@ -14,72 +13,78 @@ use super::ProcessMessage;
  * You should have received a copy of the GNU General Public License along with
  * this program. If not, see https://www.gnu.org/licenses/.
  *
-**/
+ **/
+use super::ProcessMessage;
 use crate::{
     config::{log_channel::DELIVER, server_config::ServerConfig},
     queue::Queue,
     resolver::Resolver,
+    rules::rule_engine::{RuleEngine, RuleState, Status},
+    smtp::mail::MailContext,
 };
 use std::collections::HashMap;
 
 /// process used to deliver incoming emails force accepted by the smtp process
 /// or parsed by the vMime process.
 pub async fn start(
-    resolvers: HashMap<String, Box<dyn Resolver + Send + Sync>>,
     config: std::sync::Arc<ServerConfig>,
+    rule_engine: std::sync::Arc<std::sync::RwLock<RuleEngine>>,
+    mut resolvers: HashMap<String, Box<dyn Resolver + Send + Sync>>,
     mut delivery_receiver: tokio::sync::mpsc::Receiver<ProcessMessage>,
 ) -> anyhow::Result<()> {
     log::info!(
         target: DELIVER,
         "vDeliver (deferred) booting, flushing queue.",
     );
-    flush_deferred_queue(&resolvers, &config).await?;
+    flush_deferred_queue(&mut resolvers, &config).await?;
 
     log::info!(
         target: DELIVER,
         "vDeliver (delivery) booting, flushing queue.",
     );
-    flush_deliver_queue(&resolvers, &config).await?;
+    flush_deliver_queue(&config, &rule_engine, &mut resolvers).await?;
 
     let mut flush_deferred_interval = tokio::time::interval(
         config
             .delivery
-            .queue
+            .queues
             .get("deferred")
-            .map(|q| q.cron_period)
-            .flatten()
+            .and_then(|q| q.cron_period)
             .unwrap_or_else(|| std::time::Duration::from_secs(10)),
     );
 
     loop {
         tokio::select! {
             Some(pm) = delivery_receiver.recv() => {
-                handle_one_in_delivery_queue(
-                    &resolvers,
-                    &std::path::PathBuf::from_iter([
-                        Queue::Deliver.to_path(&config.smtp.spool_dir)?,
-                        std::path::Path::new(&pm.message_id).to_path_buf(),
-                    ]),
-                    &config,
+                            if let Err(error) = handle_one_in_delivery_queue(
+                                &config,
+                                &std::path::PathBuf::from_iter([
+                                    Queue::Deliver.to_path(&config.delivery.spool_dir)?,
+                                    std::path::Path::new(&pm.message_id).to_path_buf(),
+                                ]),
+                                &rule_engine,
+                                &mut resolvers,
                 )
-                .await
-                .unwrap();
+                .await {
+                    log::error!(target: DELIVER, "{error}");
+                }
             }
             _ = flush_deferred_interval.tick() => {
                 log::info!(
                     target: DELIVER,
                     "vDeliver (deferred) cronjob delay elapsed, flushing queue.",
                 );
-                flush_deferred_queue(&resolvers, &config).await.unwrap();
+                flush_deferred_queue(&mut resolvers, &config).await.unwrap();
             }
         };
     }
 }
 
-async fn handle_one_in_delivery_queue(
-    resolvers: &HashMap<String, Box<dyn Resolver + Send + Sync>>,
-    path: &std::path::Path,
+pub(crate) async fn handle_one_in_delivery_queue(
     config: &ServerConfig,
+    path: &std::path::Path,
+    rule_engine: &std::sync::Arc<std::sync::RwLock<RuleEngine>>,
+    resolvers: &mut HashMap<String, Box<dyn Resolver + Send + Sync>>,
 ) -> anyhow::Result<()> {
     let message_id = path.file_name().and_then(|i| i.to_str()).unwrap();
 
@@ -94,72 +99,93 @@ async fn handle_one_in_delivery_queue(
     let mut raw = String::with_capacity(file.metadata().unwrap().len() as usize);
     std::io::Read::read_to_string(&mut file, &mut raw)?;
 
-    let mail: crate::model::mail::MailContext = serde_json::from_str(&raw)?;
+    let ctx: MailContext = serde_json::from_str(&raw)?;
 
-    let resolver_name = &mail.metadata.as_ref().unwrap().resolver;
-    let resolver = match resolvers.get(resolver_name) {
-        Some(resolver) => resolver,
-        None => anyhow::bail!("resolver '{resolver_name}' not found"),
+    let mut state = RuleState::with_context(config, ctx);
+    let result = rule_engine.read().unwrap().run_when(&mut state, "delivery");
+
+    match result {
+        Status::Deny => Queue::Dead.write_to_queue(config, &state.get_context().read().unwrap())?,
+        _ => {
+            let ctx = state.get_context().read().unwrap().clone();
+            match &ctx.metadata {
+                // quietly skipping delivery processes when there is no resolver.
+                // (in case of a quarantine for example)
+                Some(metadata) if metadata.resolver == "none" => {
+                    log::warn!(
+                        target: DELIVER,
+                        "delivery skipped due to NO_DELIVERY action call."
+                    );
+                    return Ok(());
+                }
+                _ => {}
+            };
+
+            let resolver_name = &ctx.metadata.as_ref().unwrap().resolver;
+            let resolver = match resolvers.get_mut(resolver_name) {
+                Some(resolver) => resolver,
+                None => anyhow::bail!("resolver '{resolver_name}' not found"),
+            };
+
+            match resolver.deliver(config, &ctx).await {
+                Ok(_) => {
+                    log::trace!(
+                        target: DELIVER,
+                        "vDeliver (delivery) '{}' SEND successfully.",
+                        message_id
+                    );
+
+                    std::fs::remove_file(&path)?;
+
+                    log::info!(
+                        target: DELIVER,
+                        "vDeliver (delivery) '{}' REMOVED successfully.",
+                        message_id
+                    );
+                }
+                Err(error) => {
+                    log::warn!(
+                        target: DELIVER,
+                        "vDeliver (delivery) '{}' SEND FAILED, reason: '{}'",
+                        message_id,
+                        error
+                    );
+
+                    std::fs::rename(
+                        path,
+                        std::path::PathBuf::from_iter([
+                            Queue::Deferred.to_path(&config.delivery.spool_dir)?,
+                            std::path::Path::new(&message_id).to_path_buf(),
+                        ]),
+                    )?;
+
+                    log::info!(
+                        target: DELIVER,
+                        "vDeliver (delivery) '{}' MOVED delivery => deferred.",
+                        message_id
+                    );
+                }
+            }
+        }
     };
-
-    match resolver.deliver(config, &mail).await {
-        Ok(_) => {
-            log::trace!(
-                target: DELIVER,
-                "vDeliver (delivery) '{}' SEND successfully.",
-                message_id
-            );
-
-            std::fs::remove_file(&path)?;
-
-            log::info!(
-                target: DELIVER,
-                "vDeliver (delivery) '{}' REMOVED successfully.",
-                message_id
-            );
-        }
-        Err(error) => {
-            log::warn!(
-                target: DELIVER,
-                "vDeliver (delivery) '{}' SEND FAILED, reason: '{}'",
-                message_id,
-                error
-            );
-
-            std::fs::rename(
-                path,
-                std::path::PathBuf::from_iter([
-                    Queue::Deferred.to_path(&config.smtp.spool_dir)?,
-                    std::path::Path::new(&message_id).to_path_buf(),
-                ]),
-            )?;
-
-            log::info!(
-                target: DELIVER,
-                "vDeliver (delivery) '{}' MOVED delivery => deferred.",
-                message_id
-            );
-        }
-    }
 
     Ok(())
 }
 
 async fn flush_deliver_queue(
-    resolvers: &HashMap<String, Box<dyn Resolver + Send + Sync>>,
     config: &ServerConfig,
+    rule_engine: &std::sync::Arc<std::sync::RwLock<RuleEngine>>,
+    resolvers: &mut HashMap<String, Box<dyn Resolver + Send + Sync>>,
 ) -> anyhow::Result<()> {
-    for path in std::fs::read_dir(Queue::Deliver.to_path(&config.smtp.spool_dir)?)? {
-        handle_one_in_delivery_queue(resolvers, &path?.path(), config)
-            .await
-            .unwrap();
+    for path in std::fs::read_dir(Queue::Deliver.to_path(&config.delivery.spool_dir)?)? {
+        handle_one_in_delivery_queue(config, &path?.path(), rule_engine, resolvers).await?
     }
 
     Ok(())
 }
 
 async fn handle_one_in_deferred_queue(
-    resolvers: &HashMap<String, Box<dyn Resolver + Send + Sync>>,
+    resolvers: &mut HashMap<String, Box<dyn Resolver + Send + Sync>>,
     path: &std::path::Path,
     config: &ServerConfig,
 ) -> anyhow::Result<()> {
@@ -176,14 +202,13 @@ async fn handle_one_in_deferred_queue(
     let mut raw = String::with_capacity(file.metadata().unwrap().len() as usize);
     std::io::Read::read_to_string(&mut file, &mut raw)?;
 
-    let mut mail: crate::model::mail::MailContext = serde_json::from_str(&raw)?;
+    let mut mail: MailContext = serde_json::from_str(&raw)?;
 
     let max_retry_deferred = config
         .delivery
-        .queue
+        .queues
         .get("deferred")
-        .map(|q| q.retry_max)
-        .flatten()
+        .and_then(|q| q.retry_max)
         .unwrap_or(100);
 
     if mail.metadata.is_none() {
@@ -201,7 +226,7 @@ async fn handle_one_in_deferred_queue(
         std::fs::rename(
             path,
             std::path::PathBuf::from_iter([
-                Queue::Dead.to_path(&config.smtp.spool_dir)?,
+                Queue::Dead.to_path(&config.delivery.spool_dir)?,
                 std::path::Path::new(&message_id).to_path_buf(),
             ]),
         )?;
@@ -213,7 +238,7 @@ async fn handle_one_in_deferred_queue(
         );
     } else {
         let resolver_name = &mail.metadata.as_ref().unwrap().resolver;
-        let resolver = match resolvers.get(resolver_name) {
+        let resolver = match resolvers.get_mut(resolver_name) {
             Some(resolver) => resolver,
             None => anyhow::bail!("resolver '{resolver_name}' not found"),
         };
@@ -266,10 +291,10 @@ async fn handle_one_in_deferred_queue(
 }
 
 async fn flush_deferred_queue(
-    resolvers: &HashMap<String, Box<dyn Resolver + Send + Sync>>,
+    resolvers: &mut HashMap<String, Box<dyn Resolver + Send + Sync>>,
     config: &ServerConfig,
 ) -> anyhow::Result<()> {
-    for path in std::fs::read_dir(Queue::Deferred.to_path(&config.smtp.spool_dir)?)? {
+    for path in std::fs::read_dir(Queue::Deferred.to_path(&config.delivery.spool_dir)?)? {
         handle_one_in_deferred_queue(resolvers, &path?.path(), config)
             .await
             .unwrap();

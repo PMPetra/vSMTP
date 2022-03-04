@@ -1,8 +1,6 @@
-use crate::config::{log_channel::RECEIVER, server_config::ServerConfig};
-
 /**
  * vSMTP mail transfer agent
- * Copyright (C) 2021 viridIT SAS
+ * Copyright (C) 2022 viridIT SAS
  *
  * This program is free software: you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
@@ -16,6 +14,12 @@ use crate::config::{log_channel::RECEIVER, server_config::ServerConfig};
  * this program. If not, see https://www.gnu.org/licenses/.
  *
 **/
+use anyhow::Context;
+
+use crate::{
+    config::{log_channel::RECEIVER, server_config::ServerConfig},
+    smtp::mail::MailContext,
+};
 
 /// identifiers for all mail queues.
 pub enum Queue {
@@ -23,6 +27,7 @@ pub enum Queue {
     Deliver,
     Deferred,
     Dead,
+    #[allow(unused)]
     Quarantine,
 }
 
@@ -48,28 +53,33 @@ impl Queue {
         Ok(dir)
     }
 
-    /// write the email to a queue and send the message id to another process.
-    pub fn write_to_queue(
-        &self,
-        config: &ServerConfig,
-        ctx: &crate::model::mail::MailContext,
-    ) -> anyhow::Result<()> {
+    pub fn write_to_queue(&self, config: &ServerConfig, ctx: &MailContext) -> anyhow::Result<()> {
         let message_id = match ctx.metadata.as_ref() {
             Some(metadata) => &metadata.message_id,
-            None => anyhow::bail!("mail metadata not found"),
+            None => anyhow::bail!(
+                "could not write to {} queue: mail metadata not found",
+                self.as_str()
+            ),
         };
 
-        let to_deliver = self.to_path(&config.smtp.spool_dir)?.join(message_id);
+        let to_deliver = self.to_path(&config.delivery.spool_dir)?.join(message_id);
 
         // TODO: should loop if a file name is conflicting.
         let mut file = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&to_deliver)?;
+            .open(&to_deliver)
+            .with_context(|| {
+                format!(
+                    "failed to open file in {} queue at {:?}",
+                    self.as_str(),
+                    to_deliver,
+                )
+            })?;
 
         std::io::Write::write_all(&mut file, serde_json::to_string(ctx)?.as_bytes())?;
 
-        log::trace!(
+        log::debug!(
             target: RECEIVER,
             "mail {} successfully written to {} queue",
             message_id,

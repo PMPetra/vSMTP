@@ -1,6 +1,6 @@
 /**
  * vSMTP mail transfer agent
- * Copyright (C) 2021 viridIT SAS
+ * Copyright (C) 2022 viridIT SAS
  *
  * This program is free software: you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
@@ -14,9 +14,10 @@
  * this program. If not, see https://www.gnu.org/licenses/.
  *
 **/
-mod actions;
 pub mod address;
+mod error;
+pub mod modules;
 mod obj;
-mod operation_queue;
 pub mod rule_engine;
-pub mod tests;
+#[cfg(test)]
+mod tests;

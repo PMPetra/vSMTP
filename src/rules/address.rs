@@ -1,6 +1,6 @@
 /**
  * vSMTP mail transfer agent
- * Copyright (C) 2021 viridIT SAS
+ * Copyright (C) 2022 viridIT SAS
  *
  * This program is free software: you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
@@ -27,7 +27,7 @@ impl std::error::Error for AddressParsingError {}
 
 impl From<&str> for AddressParsingError {
     fn from(s: &str) -> Self {
-        Self { 0: s.to_string() }
+        Self(s.to_string())
     }
 }
 
@@ -74,11 +74,7 @@ impl std::fmt::Display for Address {
 }
 
 impl Address {
-    /// a wrapper to create the address from rhai's context.
-    pub(crate) fn rhai_wrapper(addr: &str) -> Result<Self, Box<rhai::EvalAltResult>> {
-        Self::new(addr).map_err(|error| error.to_string().into())
-    }
-
+    /// Create a new address from a string, fail is invalid
     pub fn new(addr: &str) -> Result<Self, AddressParsingError> {
         match addr::parse_email_address(addr) {
             Ok(addr) => Ok(Self {

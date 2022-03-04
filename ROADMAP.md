@@ -1,13 +1,12 @@
 # vSMTP standard edition roadmap
 
 > Release before 1.0 should not be used for production purpose.
-
 For the enhanced edition roadmap, please feel free to contact us at
 <https://www.viridit.com/contact>.
 
 ## Release 0.7.x
 
-Available in December 2021, this release focuses on:
+Available from December 2021, this release focuses on:
 
 - Handling network connections, including TLS support.
 - SMTP compliancy (RFC 5321/5322).
@@ -29,7 +28,7 @@ About filtering functionalities :
 
 ## Release 0.8.x
 
-Available in mid January 2022, the main features are:
+Available from mid January 2022, the main features are:
 
 - The delivery process and the related queues for local and remote mails.
 - The Post-queue filtering.
@@ -41,21 +40,48 @@ About filtering functionalities :
 - Offline filtering stage (post-queue).
 - Deliver stage related rules and actions.
 
-## Release 0.9.x
+## Release 0.9.x : current version
 
-These releases will focus on the vSMTP policy server and on performances.
+Due to several constraints the vSMTP Policy Server (vPS) module dedicated to the integration of third-party software has been postponed to versions 0.10.x.
 
-The vSMTP Policy Server (vPS) is a module dedicated to integrating of
+The 0.9.x releases focus on:
+
+- TLS integration.
+- vSL grammar and syntax.
+- Refactoring of TOML tables/fields.
+- Local Unix services.
+
+About system integration and security:
+
+- Daemon startup mode and drop of privileges.
+- Split of system and application logs.
+
+About filtering features:
+
+- Headers manipulation.
+- Bcc() action.
+
+## Release 0.10.x : available in april 2022
+
+These versions will be the first pre-production releases, focusing on vSMTP policy server and performances.
+
+The vSMTP Policy Server (vPS) is a module dedicated to the integration of
 third-party software. Thanks to its logic engine it can manage complex filtering
-and security rules. In version 0.9.x, vPS will accept delegation trough:
+and security rules. In version 0.10.x, vPS will accept delegation trough:
 
 - The SMTP protocol.
-- A libmilter-like emulator.
+- Postfix SMTP access policy delegation support.
 - Local Unix scripts.
 
 It can be called at any stage of a SMTP transaction via the rule engine.
 
+This version will also include:
+
+- Folders restrictions for user-defined quarantines.
+- system & application logs.
+- a new `server` vsl api that will enable interaction with services and server configuration in rules.
+
 ## Production release
 
-Depending on versions 0.7+ fixes and user feedbacks, the production version is
-expected for Q2/2022.
+Depending on versions fixes and user feedbacks, the production version is
+expected for end of Q2/2022.
