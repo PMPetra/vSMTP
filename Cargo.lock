@@ -796,6 +796,7 @@ dependencies = [
  "regex",
  "rustls",
  "rustls-pemfile 0.2.1",
+ "serde",
  "tokio",
  "tokio-rustls",
  "tracing",
@@ -1980,6 +1981,7 @@ dependencies = [
  "lazy_static",
  "log",
  "rand",
+ "serde",
  "smallvec",
  "thiserror",
  "tinyvec",
@@ -2001,6 +2003,7 @@ dependencies = [
  "lru-cache",
  "parking_lot 0.12.0",
  "resolv-conf",
+ "serde",
  "smallvec",
  "thiserror",
  "tokio",
@@ -2068,6 +2071,7 @@ dependencies = [
  "idna",
  "matches",
  "percent-encoding",
+ "serde",
 ]
 
 [[package]]
@@ -2129,6 +2133,7 @@ version = "0.9.5"
 dependencies = [
  "hostname",
  "humantime-serde",
+ "lettre",
  "log",
  "log4rs",
  "num_cpus",
@@ -2141,8 +2146,25 @@ dependencies = [
  "serde_json",
  "serde_with",
  "toml",
+ "trust-dns-resolver",
  "users",
  "vsmtp-common",
+]
+
+[[package]]
+name = "vsmtp-delivery"
+version = "0.9.3"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "lettre",
+ "log",
+ "time 0.3.7",
+ "tokio",
+ "trust-dns-resolver",
+ "users",
+ "vsmtp-common",
+ "vsmtp-config",
 ]
 
 [[package]]
@@ -2165,6 +2187,7 @@ dependencies = [
  "iprange",
  "lettre",
  "log",
+ "log4rs",
  "regex",
  "rhai",
  "serde_json",
@@ -2201,9 +2224,9 @@ dependencies = [
  "time 0.3.7",
  "tokio",
  "trust-dns-resolver",
- "users",
  "vsmtp-common",
  "vsmtp-config",
+ "vsmtp-delivery",
  "vsmtp-mail-parser",
  "vsmtp-rule-engine",
 ]

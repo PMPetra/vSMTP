@@ -6,12 +6,13 @@ use super::wants::{
 use crate::{
     config::{
         ConfigApp, ConfigAppLogs, ConfigAppVSL, ConfigQueueDelivery, ConfigQueueWorking,
-        ConfigServer, ConfigServerInterfaces, ConfigServerLogs, ConfigServerQueues,
-        ConfigServerSMTP, ConfigServerSMTPError, ConfigServerSMTPTimeoutClient, ConfigServerSystem,
-        ConfigServerSystemThreadPool, ConfigServerTls, ConfigServerTlsSni, TlsSecurityLevel,
+        ConfigServer, ConfigServerDNS, ConfigServerInterfaces, ConfigServerLogs,
+        ConfigServerQueues, ConfigServerSMTP, ConfigServerSMTPError, ConfigServerSMTPTimeoutClient,
+        ConfigServerSystem, ConfigServerSystemThreadPool, ConfigServerTls, ConfigServerTlsSni,
+        TlsSecurityLevel,
     },
     parser::{tls_certificate, tls_private_key},
-    Service,
+    Service, WantsServerDNS,
 };
 use vsmtp_common::{
     code::SMTPReplyCode,
@@ -526,7 +527,7 @@ impl Builder<WantsAppServices> {
     ///
     #[allow(clippy::missing_const_for_fn)]
     #[must_use]
-    pub fn without_services(self) -> Builder<WantsValidate> {
+    pub fn without_services(self) -> Builder<WantsServerDNS> {
         self.with_services(std::collections::BTreeMap::new())
     }
 
@@ -536,11 +537,66 @@ impl Builder<WantsAppServices> {
     pub fn with_services(
         self,
         services: std::collections::BTreeMap<String, Service>,
+    ) -> Builder<WantsServerDNS> {
+        Builder::<WantsServerDNS> {
+            state: WantsServerDNS {
+                parent: self.state,
+                services,
+            },
+        }
+    }
+}
+
+impl Builder<WantsServerDNS> {
+    /// dns resolutions will be made using google's service.
+    #[allow(clippy::missing_const_for_fn)]
+    #[must_use]
+    pub fn with_google_dns(self) -> Builder<WantsValidate> {
+        Builder::<WantsValidate> {
+            state: WantsValidate {
+                parent: self.state,
+                config: ConfigServerDNS::Google,
+            },
+        }
+    }
+
+    /// dns resolutions will be made using couldflare's service.
+    #[allow(clippy::missing_const_for_fn)]
+    #[must_use]
+    pub fn with_cloudflare_dns(self) -> Builder<WantsValidate> {
+        Builder::<WantsValidate> {
+            state: WantsValidate {
+                parent: self.state,
+                config: ConfigServerDNS::CloudFlare,
+            },
+        }
+    }
+
+    /// dns resolutions will be made using the system configuration.
+    /// (/etc/resolv.conf on unix systems & the registry on Windows).
+    #[allow(clippy::missing_const_for_fn)]
+    #[must_use]
+    pub fn with_system_dns(self) -> Builder<WantsValidate> {
+        Builder::<WantsValidate> {
+            state: WantsValidate {
+                parent: self.state,
+                config: ConfigServerDNS::System,
+            },
+        }
+    }
+
+    /// dns resolutions will be made using the following dns configuration.
+    #[allow(clippy::missing_const_for_fn)]
+    #[must_use]
+    pub fn with_dns(
+        self,
+        config: trust_dns_resolver::config::ResolverConfig,
+        options: trust_dns_resolver::config::ResolverOpts,
     ) -> Builder<WantsValidate> {
         Builder::<WantsValidate> {
             state: WantsValidate {
                 parent: self.state,
-                services,
+                config: ConfigServerDNS::Custom { config, options },
             },
         }
     }

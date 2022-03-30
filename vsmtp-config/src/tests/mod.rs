@@ -1,3 +1,4 @@
+use crate::config::ConfigServerDNS;
 use crate::config::ConfigServerSMTPAuth;
 
 use super::config::{
@@ -85,6 +86,7 @@ fn construct() {
                     must_be_authenticated: false,
                 }),
             },
+            dns: ConfigServerDNS::default(),
         },
         app: ConfigApp {
             dirpath: "/var/spool/vsmtp/app".into(),
