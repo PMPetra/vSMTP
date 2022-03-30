@@ -13,10 +13,12 @@
  * You should have received a copy of the GNU General Public License along with
  * this program. If not, see https://www.gnu.org/licenses/.
  *
-*/
+**/
 use crate::receiver::{Connection, MailContext, OnMail};
 use crate::test_receiver;
-use vsmtp_common::{address::Address, mail_context::Body};
+use vsmtp_common::address::Address;
+use vsmtp_common::mail_context::Body;
+use vsmtp_common::re::anyhow;
 
 macro_rules! test_lang {
     ($lang_code:expr) => {{

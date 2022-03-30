@@ -117,7 +117,7 @@ fn write_content_to_mbox(
         .open(&mbox)
         .with_context(|| format!("could not open {:?} mbox", mbox))?;
 
-    chown(mbox, Some(user), None)
+    chown(mbox, Some(user.uid()), None)
         .with_context(|| format!("could not set owner for '{:?}' mbox", mbox))?;
 
     std::io::Write::write_all(&mut file, content.as_bytes())

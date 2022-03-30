@@ -157,7 +157,7 @@ async fn send_email(
 mod test {
 
     use vsmtp_common::address::Address;
-    use vsmtp_config::{config::ConfigServerDNS, Config};
+    use vsmtp_config::{Config, ConfigServerDNS};
 
     use crate::transport::deliver::{get_mx_records, send_email};
 
@@ -168,7 +168,7 @@ mod test {
         // FIXME: find a way to guarantee that the mx records exists.
         let mut config = Config::default();
         config.server.dns = ConfigServerDNS::System;
-        let dns = vsmtp_config::trust_dns_helper::build_dns(&config).unwrap();
+        let dns = vsmtp_config::build_dns(&config).unwrap();
 
         get_mx_records(&dns, "google.com")
             .await

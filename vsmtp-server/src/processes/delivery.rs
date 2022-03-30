@@ -21,6 +21,7 @@ use time::format_description::well_known::Rfc2822;
 use trust_dns_resolver::TokioAsyncResolver;
 use vsmtp_common::{
     mail_context::{Body, MailContext},
+    re::{anyhow, log},
     status::Status,
     transfer::EmailTransferStatus,
 };
@@ -47,8 +48,7 @@ pub async fn start(
         "vDeliver (delivery) booting, flushing queue.",
     );
 
-    let dns = vsmtp_config::trust_dns_helper::build_dns(&config)
-        .context("could not initialize the delivery dns")?;
+    let dns = vsmtp_config::build_dns(&config).context("could not initialize the delivery dns")?;
 
     flush_deliver_queue(&config, &dns, &rule_engine).await?;
 

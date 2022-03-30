@@ -15,15 +15,16 @@
  *
 */
 
+use crate::Config;
 use trust_dns_resolver::{
     config::{ResolverConfig, ResolverOpts},
     error::ResolveError,
     TokioAsyncResolver,
 };
 
-use crate::Config;
-
 /// build an async dns using tokio & trust_dns from configuration.
+///
+/// # Errors
 pub fn build_dns(config: &Config) -> Result<TokioAsyncResolver, ResolveError> {
     match &config.server.dns {
         crate::config::ConfigServerDNS::Google => {

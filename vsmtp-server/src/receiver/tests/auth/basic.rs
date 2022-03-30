@@ -1,10 +1,3 @@
-use vsmtp_common::{
-    address::Address,
-    mail_context::MailContext,
-    re::{base64, rsasl},
-};
-use vsmtp_config::config::ConfigServerSMTPAuth;
-
 use crate::{
     receiver::{
         tests::auth::{get_auth_config, TestAuth},
@@ -12,6 +5,12 @@ use crate::{
     },
     test_receiver,
 };
+use vsmtp_common::{
+    address::Address,
+    mail_context::MailContext,
+    re::{anyhow, rsasl},
+};
+use vsmtp_config::ConfigServerSMTPAuth;
 
 #[tokio::test]
 async fn plain_in_clair_secured() {

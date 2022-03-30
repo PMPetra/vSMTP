@@ -23,6 +23,7 @@ use crate::{
     server::SaslBackend,
 };
 use anyhow::Context;
+use vsmtp_common::re::anyhow;
 use vsmtp_config::Config;
 use vsmtp_rule_engine::rule_engine::RuleEngine;
 
@@ -129,6 +130,7 @@ pub(crate) fn get_regular_config() -> Config {
         .unwrap()
         .with_server_name("testserver.com")
         .with_user_group_and_default_system("root", "root")
+        .unwrap()
         .with_ipv4_localhost()
         .with_default_logs_settings()
         .with_spool_dir_and_default_queues("./tmp/delivery")

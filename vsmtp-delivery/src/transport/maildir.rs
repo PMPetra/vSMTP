@@ -22,9 +22,10 @@ use vsmtp_common::{
     libc_abstraction::{chown, getpwuid},
     mail_context::MessageMetadata,
     rcpt::Rcpt,
+    re::{anyhow, log},
     transfer::EmailTransferStatus,
 };
-use vsmtp_config::{log_channel::DELIVER, Config};
+use vsmtp_config::{log_channel::DELIVER, re::users, Config};
 
 /// see https://en.wikipedia.org/wiki/Maildir
 #[derive(Default)]
@@ -90,7 +91,7 @@ fn create_maildir(
     let create_and_chown = |path: &std::path::PathBuf, user: &users::User| -> anyhow::Result<()> {
         if !path.exists() {
             std::fs::create_dir(&path).with_context(|| format!("failed to create {:?}", path))?;
-            chown(path, Some(user), None)
+            chown(path, Some(user.uid()), None)
                 .with_context(|| format!("failed to set user rights to {:?}", path))?;
         }
 
@@ -120,7 +121,7 @@ fn write_to_maildir(
 
     std::io::Write::write_all(&mut email, content.as_bytes())?;
 
-    chown(&maildir, Some(user), None)?;
+    chown(&maildir, Some(user.uid()), None)?;
 
     log::debug!(
         target: DELIVER,

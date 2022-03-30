@@ -20,7 +20,11 @@
 #![allow(clippy::use_self)]
 
 use crate::parser::{tls_certificate, tls_private_key};
-use vsmtp_common::{auth::Mechanism, code::SMTPReplyCode, re::anyhow};
+use vsmtp_common::{
+    auth::Mechanism,
+    code::SMTPReplyCode,
+    re::{anyhow, log},
+};
 
 ///
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -60,18 +64,34 @@ pub struct ConfigServer {
     pub dns: ConfigServerDNS,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ConfigServerSystem {
-    // TODO: should be users::
     #[serde(default = "ConfigServerSystem::default_user")]
-    pub user: String,
-    // TODO: should be users::
+    #[serde(
+        serialize_with = "crate::parser::syst_user::serialize",
+        deserialize_with = "crate::parser::syst_user::deserialize"
+    )]
+    pub user: users::User,
     #[serde(default = "ConfigServerSystem::default_group")]
-    pub group: String,
+    #[serde(
+        serialize_with = "crate::parser::syst_group::serialize",
+        deserialize_with = "crate::parser::syst_group::deserialize"
+    )]
+    pub group: users::Group,
     #[serde(default)]
     pub thread_pool: ConfigServerSystemThreadPool,
 }
+
+impl PartialEq for ConfigServerSystem {
+    fn eq(&self, other: &Self) -> bool {
+        self.user.uid() == other.user.uid()
+            && self.group.gid() == other.group.gid()
+            && self.thread_pool == other.thread_pool
+    }
+}
+
+impl Eq for ConfigServerSystem {}
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]

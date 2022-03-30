@@ -1,5 +1,3 @@
-use std::net::{IpAddr, Ipv4Addr};
-
 /**
  * vSMTP mail transfer agent
  * Copyright (C) 2022 viridIT SAS
@@ -53,6 +51,7 @@ fn test_rule_state() {
         .unwrap()
         .with_server_name_and_client_count("testserver.com", 32)
         .with_user_group_and_default_system("root", "root")
+        .unwrap()
         .with_ipv4_localhost()
         .with_default_logs_settings()
         .with_spool_dir_and_default_queues("./tmp/delivery")
@@ -89,7 +88,7 @@ fn test_rule_state() {
 
     assert_eq!(
         state.get_context().read().unwrap().client_addr.ip(),
-        IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0))
+        std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0))
     );
     assert_eq!(
         state_with_context
@@ -98,6 +97,6 @@ fn test_rule_state() {
             .unwrap()
             .client_addr
             .ip(),
-        IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))
+        std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1))
     );
 }

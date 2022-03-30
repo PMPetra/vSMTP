@@ -1,6 +1,11 @@
 #![allow(clippy::module_name_repetitions)]
 
-use vsmtp_common::{auth::Mechanism, code::SMTPReplyCode, collection, re::strum};
+use vsmtp_common::{
+    auth::Mechanism,
+    code::SMTPReplyCode,
+    collection,
+    re::{log, strum},
+};
 
 use crate::{
     config::{
@@ -60,20 +65,20 @@ impl Default for ConfigServerSystem {
 }
 
 impl ConfigServerSystem {
-    pub(crate) fn default_user() -> String {
-        match option_env!("CI") {
+    pub(crate) fn default_user() -> users::User {
+        users::get_user_by_name(match option_env!("CI") {
             Some(_) => "root",
             None => "vsmtp",
-        }
-        .to_string()
+        })
+        .unwrap()
     }
 
-    pub(crate) fn default_group() -> String {
-        match option_env!("CI") {
+    pub(crate) fn default_group() -> users::Group {
+        users::get_group_by_name(match option_env!("CI") {
             Some(_) => "root",
             None => "vsmtp",
-        }
-        .to_string()
+        })
+        .unwrap()
     }
 }
 

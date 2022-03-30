@@ -21,6 +21,7 @@ use crate::{
 use vsmtp_common::{
     address::Address,
     mail_context::{Body, MailContext},
+    re::anyhow,
 };
 use vsmtp_mail_parser::MailMimeParser;
 
