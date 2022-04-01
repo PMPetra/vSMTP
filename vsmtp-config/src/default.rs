@@ -1,12 +1,5 @@
 #![allow(clippy::module_name_repetitions)]
 
-use vsmtp_common::{
-    auth::Mechanism,
-    code::SMTPReplyCode,
-    collection,
-    re::{log, strum},
-};
-
 use crate::{
     config::{
         ConfigApp, ConfigAppLogs, ConfigAppVSL, ConfigQueueDelivery, ConfigQueueWorking,
@@ -14,12 +7,18 @@ use crate::{
         ConfigServerQueues, ConfigServerSMTP, ConfigServerSMTPAuth, ConfigServerSMTPError,
         ConfigServerSMTPTimeoutClient, ConfigServerSystem, ConfigServerSystemThreadPool,
     },
-    Builder, Config, Service,
+    Config, ConfigServerTls, Service,
+};
+use vsmtp_common::{
+    auth::Mechanism,
+    code::SMTPReplyCode,
+    collection,
+    re::{log, strum},
 };
 
 impl Default for Config {
     fn default() -> Self {
-        Builder::ensure(Self {
+        Self::ensure(Self {
             version_requirement: semver::VersionReq::parse("<1.0.0").unwrap(),
             server: ConfigServer::default(),
             app: ConfigApp::default(),
@@ -148,6 +147,24 @@ impl ConfigServerLogs {
     }
 }
 
+impl ConfigServerTls {
+    pub(crate) fn default_cipher_suite() -> Vec<rustls::CipherSuite> {
+        vec![
+            // TLS1.3 suites
+            rustls::CipherSuite::TLS13_AES_256_GCM_SHA384,
+            rustls::CipherSuite::TLS13_AES_128_GCM_SHA256,
+            rustls::CipherSuite::TLS13_CHACHA20_POLY1305_SHA256,
+            // TLS1.2 suites
+            rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+            rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+            rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+            rustls::CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+            rustls::CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+            rustls::CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+        ]
+    }
+}
+
 impl Default for ConfigServerQueues {
     fn default() -> Self {
         Self {
@@ -197,7 +214,9 @@ impl ConfigServerSMTPAuth {
         false
     }
 
-    pub(crate) fn default_mechanisms() -> Vec<Mechanism> {
+    /// Return all the supported SASL mechanisms
+    #[must_use]
+    pub fn default_mechanisms() -> Vec<Mechanism> {
         <Mechanism as strum::IntoEnumIterator>::iter().collect::<Vec<_>>()
     }
 

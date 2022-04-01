@@ -48,6 +48,7 @@ mod parser {
     pub mod syst_group;
     pub mod syst_user;
     pub mod tls_certificate;
+    pub mod tls_cipher_suite;
     pub mod tls_private_key;
     pub mod tls_protocol_version;
 }
@@ -86,8 +87,6 @@ pub mod re {
 
 use builder::{Builder, WantsVersion};
 use vsmtp_common::re::anyhow;
-
-use crate::builder::WantsValidate;
 
 impl Config {
     ///
@@ -135,7 +134,7 @@ impl Config {
         }
 
         toml::from_str::<Self>(input)
-            .map(Builder::<WantsValidate>::ensure)
+            .map(Self::ensure)
             .map_err(anyhow::Error::new)?
     }
 }

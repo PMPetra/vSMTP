@@ -79,6 +79,7 @@ mod tests {
 
 ///
 pub mod re {
+    pub use addr;
     pub use anyhow;
     pub use libc;
     pub use log;
