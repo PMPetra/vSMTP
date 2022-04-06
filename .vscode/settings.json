@@ -11,6 +11,7 @@
         "clamav",
         "cpus",
         "dirpath",
+        "dnssec",
         "ehlo",
         "ENHANCEDSTATUSCODES",
         "Expn",
