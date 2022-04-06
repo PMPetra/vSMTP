@@ -25,7 +25,10 @@ time = { version = "0.3.7", default-features = false, features = [
 ] }
 
 users = { version = "0.11.0", features = [] }
-trust-dns-resolver = "0.21.1"
+trust-dns-resolver = { version = "0.21.1", features = [
+    "dns-over-rustls",
+    "dnssec-openssl",
+] }
 lettre = { version = "0.10.0-rc.4", default-features = false, features = [
     "smtp-transport",
     "pool",

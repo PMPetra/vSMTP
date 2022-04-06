@@ -76,6 +76,18 @@ impl Transport for Deliver {
             // we try to deliver the email to the recipients of the current group using found mail exchangers.
             for record in records.by_ref() {
                 for destination in dns.lookup_ip(&record.exchange().to_ascii()).await?.iter() {
+                    for tlsa in dns
+                        .tlsa_lookup(crate::transport::create_tlsa_query(
+                            &record.exchange().to_ascii(),
+                            25,
+                            "tcp",
+                        ))
+                        .await
+                        .unwrap()
+                    {
+                        println!("tlsa: {tlsa:#?}");
+                    }
+
                     if (send_email(config, &destination.to_string(), &envelop, from, content).await)
                         .is_ok()
                     {

@@ -105,6 +105,15 @@ pub mod transport {
         let parameters =
             lettre::transport::smtp::client::TlsParameters::builder(target.to_string())
                 .add_root_certificate(
+                    // if let Some(virtual) = config.virtual.get(from.domain()) {
+                    //     match virtual.dane {
+                    //         "must" => dns.tlsa_lookup(format!("_{port}._{protocol}.{target}").unwrap()
+                    //         _ => todo!()
+                    //     }
+                    // } else {
+                    //     todo!()
+                    // }
+
                     // from's domain could match the root domain of the server.
                     if config.server.domain == from.domain() {
                         lettre::transport::smtp::client::Certificate::from_der(
@@ -141,6 +150,11 @@ pub mod transport {
                 ))
                 .build(),
         )
+    }
+
+    /// create a query to request tlsa records.
+    fn create_tlsa_query(target: &str, port: u16, protocol: &str) -> String {
+        format!("_{port}._{protocol}.{target}")
     }
 }
 
