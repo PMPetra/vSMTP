@@ -61,6 +61,7 @@ fn parse() {
                 },
                 trust_dns_resolver::config::ResolverOpts::default()
             )
+            .without_virtual_entries()
             .validate()
             .unwrap()
     );

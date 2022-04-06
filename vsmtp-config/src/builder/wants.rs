@@ -7,7 +7,7 @@ use crate::{
         ConfigQueueDelivery, ConfigQueueWorking, ConfigServerDNS, ConfigServerSMTPError,
         ConfigServerSMTPTimeoutClient, ConfigServerTls, Service,
     },
-    ConfigServerSMTPAuth,
+    ConfigServerSMTPAuth, ConfigServerVirtual,
 };
 
 ///
@@ -121,7 +121,13 @@ pub struct WantsServerDNS {
 }
 
 ///
-pub struct WantsValidate {
+pub struct WantsServerVirtual {
     pub(crate) parent: WantsServerDNS,
     pub(super) config: ConfigServerDNS,
+}
+
+///
+pub struct WantsValidate {
+    pub(crate) parent: WantsServerVirtual,
+    pub(super) r#virtual: Vec<ConfigServerVirtual>,
 }

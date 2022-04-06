@@ -63,7 +63,6 @@ fn construct() {
                 protocol_version: vec![rustls::ProtocolVersion::TLSv1_3],
                 certificate: rustls::Certificate(vec![]),
                 private_key: rustls::PrivateKey(vec![]),
-                sni: vec![],
                 cipher_suite: vec![],
             }),
             smtp: ConfigServerSMTP {
@@ -91,6 +90,7 @@ fn construct() {
                 }),
             },
             dns: ConfigServerDNS::default(),
+            r#virtual: vec![],
         },
         app: ConfigApp {
             dirpath: "/var/spool/vsmtp/app".into(),

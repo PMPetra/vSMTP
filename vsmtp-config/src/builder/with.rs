@@ -8,14 +8,14 @@ use super::{
         WantsServerSMTPConfig2, WantsServerSMTPConfig3, WantsServerSystem, WantsServerTLSConfig,
         WantsValidate, WantsVersion,
     },
-    WantsServerSMTPAuth,
+    WantsServerSMTPAuth, WantsServerVirtual,
 };
 use crate::{
     config::{
         ConfigApp, ConfigAppLogs, ConfigAppVSL, ConfigQueueDelivery, ConfigQueueWorking,
         ConfigServer, ConfigServerDNS, ConfigServerInterfaces, ConfigServerLogs,
         ConfigServerQueues, ConfigServerSMTP, ConfigServerSMTPError, ConfigServerSMTPTimeoutClient,
-        ConfigServerSystem, ConfigServerSystemThreadPool, ConfigServerTls, ConfigServerTlsSni,
+        ConfigServerSystem, ConfigServerSystemThreadPool, ConfigServerTls, ConfigServerVirtual,
         TlsSecurityLevel,
     },
     parser::{tls_certificate, tls_private_key},
@@ -327,7 +327,6 @@ impl Builder<WantsServerTLSConfig> {
                     protocol_version: vec![rustls::ProtocolVersion::TLSv1_3],
                     certificate: tls_certificate::from_string(certificate)?,
                     private_key: tls_private_key::from_string(private_key)?,
-                    sni: vec![],
                     cipher_suite: ConfigServerTls::default_cipher_suite(),
                 }),
             },
@@ -347,39 +346,6 @@ impl Builder<WantsServerTLSConfig> {
 }
 
 impl Builder<WantsServerSMTPConfig1> {
-    ///
-    /// # Errors
-    ///
-    /// * certificate is not valid
-    /// * private_key is not valid
-    pub fn with_sni_entry(
-        self,
-        domain: &str,
-        certificate: &str,
-        private_key: &str,
-    ) -> anyhow::Result<Self> {
-        let mut tls = self
-            .state
-            .tls
-            .ok_or_else(|| anyhow::anyhow!("sni can only be used with tls"))?;
-        Ok(Self {
-            state: WantsServerSMTPConfig1 {
-                parent: self.state.parent,
-                tls: Some(ConfigServerTls {
-                    sni: {
-                        tls.sni.push(ConfigServerTlsSni {
-                            domain: domain.to_string(),
-                            certificate: tls_certificate::from_string(certificate)?,
-                            private_key: tls_private_key::from_string(private_key)?,
-                        });
-                        tls.sni
-                    },
-                    ..tls
-                }),
-            },
-        })
-    }
-
     ///
     #[must_use]
     pub fn with_default_smtp_options(self) -> Builder<WantsServerSMTPConfig2> {
@@ -633,9 +599,9 @@ impl Builder<WantsAppServices> {
 impl Builder<WantsServerDNS> {
     /// dns resolutions will be made using google's service.
     #[must_use]
-    pub fn with_google_dns(self) -> Builder<WantsValidate> {
-        Builder::<WantsValidate> {
-            state: WantsValidate {
+    pub fn with_google_dns(self) -> Builder<WantsServerVirtual> {
+        Builder::<WantsServerVirtual> {
+            state: WantsServerVirtual {
                 parent: self.state,
                 config: ConfigServerDNS::Google,
             },
@@ -644,9 +610,9 @@ impl Builder<WantsServerDNS> {
 
     /// dns resolutions will be made using couldflare's service.
     #[must_use]
-    pub fn with_cloudflare_dns(self) -> Builder<WantsValidate> {
-        Builder::<WantsValidate> {
-            state: WantsValidate {
+    pub fn with_cloudflare_dns(self) -> Builder<WantsServerVirtual> {
+        Builder::<WantsServerVirtual> {
+            state: WantsServerVirtual {
                 parent: self.state,
                 config: ConfigServerDNS::CloudFlare,
             },
@@ -656,9 +622,9 @@ impl Builder<WantsServerDNS> {
     /// dns resolutions will be made using the system configuration.
     /// (/etc/resolv.conf on unix systems & the registry on Windows).
     #[must_use]
-    pub fn with_system_dns(self) -> Builder<WantsValidate> {
-        Builder::<WantsValidate> {
-            state: WantsValidate {
+    pub fn with_system_dns(self) -> Builder<WantsServerVirtual> {
+        Builder::<WantsServerVirtual> {
+            state: WantsServerVirtual {
                 parent: self.state,
                 config: ConfigServerDNS::System,
             },
@@ -671,12 +637,62 @@ impl Builder<WantsServerDNS> {
         self,
         config: trust_dns_resolver::config::ResolverConfig,
         options: trust_dns_resolver::config::ResolverOpts,
-    ) -> Builder<WantsValidate> {
-        Builder::<WantsValidate> {
-            state: WantsValidate {
+    ) -> Builder<WantsServerVirtual> {
+        Builder::<WantsServerVirtual> {
+            state: WantsServerVirtual {
                 parent: self.state,
                 config: ConfigServerDNS::Custom { config, options },
             },
         }
+    }
+}
+
+/// metadata for a virtual entry.
+pub struct VirtualEntry {
+    /// the domain of the entry.
+    pub domain: String,
+    /// path to the certificate used for tls.
+    pub certificate_path: String,
+    /// path to the private key used for tls.
+    pub private_key_path: String,
+}
+
+impl Builder<WantsServerVirtual> {
+    ///
+    #[must_use]
+    pub fn without_virtual_entries(self) -> Builder<WantsValidate> {
+        Builder::<WantsValidate> {
+            state: WantsValidate {
+                parent: self.state,
+                r#virtual: vec![],
+            },
+        }
+    }
+
+    /// adds multiple virtual entries to the server.
+    ///
+    /// # Errors
+    ///
+    /// * one of the certificate is not valid
+    /// * one private key is not valid
+    pub fn with_virtual_entries(
+        self,
+        entries: &[VirtualEntry],
+    ) -> anyhow::Result<Builder<WantsValidate>> {
+        Ok(Builder::<WantsValidate> {
+            state: WantsValidate {
+                parent: self.state,
+                r#virtual: entries
+                    .iter()
+                    .map(|p| {
+                        ConfigServerVirtual::with_tls(
+                            &p.domain,
+                            &p.certificate_path,
+                            &p.private_key_path,
+                        )
+                    })
+                    .collect::<Result<Vec<ConfigServerVirtual>, _>>()?,
+            },
+        })
     }
 }

@@ -65,6 +65,7 @@ fn test_rule_state() {
         .with_default_app_logs()
         .without_services()
         .with_system_dns()
+        .without_virtual_entries()
         .validate()
         .unwrap();
 

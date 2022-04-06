@@ -121,15 +121,15 @@ pub mod transport {
                         )
                         .context("failed to parse certificate as der")?
                     }
-                    // or a domain from one of the sni.
-                    else if let Some(sni) = config
+                    // or a domain from one of the virtual domains.
+                    else if let Some(v) = config
                         .server
-                        .tls
-                        .as_ref()
-                        .and_then(|tls| tls.sni.iter().find(|sni| sni.domain == from.domain()))
+                        .r#virtual
+                        .iter()
+                        .find(|v| v.domain == from.domain())
                     {
                         lettre::transport::smtp::client::Certificate::from_der(
-                            sni.certificate.0.clone(),
+                            v.tls.certificate.0.clone(),
                         )
                         .context("failed to parse certificate as der")?
                     } else {

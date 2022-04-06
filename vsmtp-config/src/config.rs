@@ -62,6 +62,8 @@ pub struct ConfigServer {
     pub smtp: ConfigServerSMTP,
     #[serde(default)]
     pub dns: ConfigServerDNS,
+    #[serde(default)]
+    pub r#virtual: Vec<ConfigServerVirtual>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
@@ -150,9 +152,37 @@ pub struct ConfigServerQueues {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct ConfigServerTlsSni {
+pub struct ConfigServerVirtual {
     // TODO: parse valid fqdn
     pub domain: String,
+    pub tls: ConfigServerVirtualTls,
+    pub dns: ConfigServerVirtualDns,
+}
+
+impl ConfigServerVirtual {
+    ///
+    ///
+    /// # Errors
+    ///
+    /// * certificate is not valid
+    /// * private key is not valid
+    pub fn with_tls(domain: &str, certificate: &str, private_key: &str) -> anyhow::Result<Self> {
+        Ok(Self {
+            domain: domain.to_string(),
+            tls: ConfigServerVirtualTls::from_path(certificate, private_key)?,
+            dns: ConfigServerVirtualDns::default(),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigServerVirtualTls {
+    #[serde(
+        serialize_with = "crate::parser::tls_protocol_version::serialize",
+        deserialize_with = "crate::parser::tls_protocol_version::deserialize"
+    )]
+    pub protocol_version: Vec<rustls::ProtocolVersion>,
     #[serde(
         serialize_with = "crate::parser::tls_certificate::serialize",
         deserialize_with = "crate::parser::tls_certificate::deserialize"
@@ -163,22 +193,37 @@ pub struct ConfigServerTlsSni {
         deserialize_with = "crate::parser::tls_private_key::deserialize"
     )]
     pub private_key: rustls::PrivateKey,
+    #[serde(default = "ConfigServerVirtualTls::default_sender_tls_policy")]
+    pub sender_tls_policy: TlsSecurityLevel,
+    #[serde(default = "ConfigServerVirtualTls::default_sender_tlsa_digest")]
+    pub sender_tlsa_digest: String,
 }
 
-impl ConfigServerTlsSni {
-    ///
+impl ConfigServerVirtualTls {
+    /// create a virtual tls configuration from the certificate & private key paths.
     ///
     /// # Errors
     ///
-    /// * certificate is not valid
-    /// * private key is not valid
-    pub fn from_path(domain: &str, certificate: &str, private_key: &str) -> anyhow::Result<Self> {
+    /// * certificate file not found.
+    /// * private key file not found.
+    pub fn from_path(certificate: &str, private_key: &str) -> anyhow::Result<Self> {
         Ok(Self {
-            domain: domain.to_string(),
+            protocol_version: vec![rustls::ProtocolVersion::TLSv1_3],
             certificate: tls_certificate::from_string(certificate)?,
             private_key: tls_private_key::from_string(private_key)?,
+
+            sender_tls_policy: ConfigServerVirtualTls::default_sender_tls_policy(),
+            sender_tlsa_digest: ConfigServerVirtualTls::default_sender_tlsa_digest(),
         })
     }
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigServerVirtualDns {
+    // NOTE: trust-dns only enable the user to validate dns queries with dnssec,
+    //       None / May / Must options cannot be used here.
+    pub dnssec: bool,
 }
 
 /// If a TLS configuration is provided, configure how the connection should be treated
@@ -190,6 +235,8 @@ pub enum TlsSecurityLevel {
     May,
     /// Connection must be under a TLS tunnel (using STARTTLS mechanism or using port 465)
     Encrypt,
+    /// DANE protocol using TLSA dns records to establish a secure connexion with a distant server.
+    Dane,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
@@ -220,8 +267,6 @@ pub struct ConfigServerTls {
         deserialize_with = "crate::parser::tls_private_key::deserialize"
     )]
     pub private_key: rustls::PrivateKey,
-    #[serde(default)]
-    pub sni: Vec<ConfigServerTlsSni>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]

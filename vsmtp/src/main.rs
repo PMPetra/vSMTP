@@ -37,7 +37,9 @@ fn main() -> anyhow::Result<()> {
     let config = match args.config {
         Some(config) => std::fs::read_to_string(&config)
             .with_context(|| format!("Cannot read file '{}'", config))
-            .and_then(|data| Config::from_toml(&data).with_context(|| "File contains format error"))
+            .and_then(|data| {
+                Config::from_toml(&data).context(format!("'{config}' contains format error"))
+            })
             .with_context(|| "Cannot parse the configuration")?,
         None => Config::default(),
     };

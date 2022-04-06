@@ -7,7 +7,7 @@ use crate::{
         ConfigServerQueues, ConfigServerSMTP, ConfigServerSMTPAuth, ConfigServerSMTPError,
         ConfigServerSMTPTimeoutClient, ConfigServerSystem, ConfigServerSystemThreadPool,
     },
-    Config, ConfigServerTls, Service,
+    Config, ConfigServerTls, ConfigServerVirtualTls, Service, TlsSecurityLevel,
 };
 use vsmtp_common::{
     auth::Mechanism,
@@ -39,6 +39,7 @@ impl Default for ConfigServer {
             tls: None,
             smtp: ConfigServerSMTP::default(),
             dns: ConfigServerDNS::default(),
+            r#virtual: vec![],
         }
     }
 }
@@ -194,6 +195,16 @@ impl Default for ConfigQueueDelivery {
             deferred_retry_max: 100,
             deferred_retry_period: std::time::Duration::from_secs(300),
         }
+    }
+}
+
+impl ConfigServerVirtualTls {
+    pub(crate) const fn default_sender_tls_policy() -> TlsSecurityLevel {
+        TlsSecurityLevel::May
+    }
+
+    pub(crate) fn default_sender_tlsa_digest() -> String {
+        "SHA512".to_string()
     }
 }
 
