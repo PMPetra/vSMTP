@@ -52,6 +52,7 @@
         "STARTTLS",
         "tabis",
         "testserver",
+        "tlsa",
         "unencrypted",
         "viridit",
         "vmta",
