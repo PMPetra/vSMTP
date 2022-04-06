@@ -11,12 +11,24 @@ protocol_version = "TLSv1.3"
 certificate = "../examples/config/tls/certificate.crt"
 private_key = "../examples/config/tls/private_key.key"
 
-[[server.tls.sni]]
+[[server.virtual]]
 domain = "testserver2.com"
+
+[server.virtual.tls]
+protocol_version = "TLSv1.3"
 certificate = "../examples/config/tls/certificate.crt"
 private_key = "../examples/config/tls/private_key.key"
 
-[[server.tls.sni]]
+[server.virtual.dns]
+dnssec = false
+
+[[server.virtual]]
 domain = "testserver3.com"
+
+[server.virtual.tls]
+protocol_version = "TLSv1.3"
 certificate = "../examples/config/tls/certificate.crt"
 private_key = "../examples/config/tls/private_key.key"
+
+[server.virtual.dns]
+dnssec = false
