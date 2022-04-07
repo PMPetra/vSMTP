@@ -20,7 +20,7 @@ certificate = "../examples/config/tls/certificate.crt"
 private_key = "../examples/config/tls/private_key.key"
 
 [server.virtual.dns]
-dnssec = false
+type = "system"
 
 [[server.virtual]]
 domain = "testserver3.com"
@@ -31,4 +31,4 @@ certificate = "../examples/config/tls/certificate.crt"
 private_key = "../examples/config/tls/private_key.key"
 
 [server.virtual.dns]
-dnssec = false
+type = "system"

@@ -130,7 +130,7 @@ mod tests {
                     client_addr: "127.0.0.1:80".parse().unwrap(),
                     envelop: Envelop {
                         helo: "client.com".to_string(),
-                        mail_from: Address::try_from("from@client.com".to_string()).unwrap(),
+                        mail_from: Address::try_from("from@testserver.com".to_string()).unwrap(),
                         rcpt: vec![
                             Rcpt {
                                 address: Address::try_from("to+1@client.com".to_string()).unwrap(),
@@ -171,7 +171,7 @@ mod tests {
                 client_addr: "127.0.0.1:80".parse().unwrap(),
                 envelop: Envelop {
                     helo: "client.com".to_string(),
-                    mail_from: Address::try_from("from@client.com".to_string()).unwrap(),
+                    mail_from: Address::try_from("from@testserver.com".to_string()).unwrap(),
                     rcpt: vec![
                         Rcpt {
                             address: Address::try_from("to+1@client.com".to_string()).unwrap(),

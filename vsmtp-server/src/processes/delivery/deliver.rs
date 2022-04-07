@@ -149,7 +149,7 @@ mod tests {
                     client_addr: "127.0.0.1:80".parse().unwrap(),
                     envelop: Envelop {
                         helo: "client.com".to_string(),
-                        mail_from: Address::try_from("from@client.com".to_string()).unwrap(),
+                        mail_from: Address::try_from("from@testserver.com".to_string()).unwrap(),
                         rcpt: vec![
                             Rcpt {
                                 address: Address::try_from("to+1@client.com".to_string()).unwrap(),
@@ -166,7 +166,7 @@ mod tests {
                     body: Body::Raw("Date: bar\r\nFrom: foo\r\nHello world\r\n".to_string()),
                     metadata: Some(MessageMetadata {
                         timestamp: now,
-                        message_id: "test".to_string(),
+                        message_id: "deliver_test_basic".to_string(),
                         skipped: None,
                     }),
                 },
@@ -180,7 +180,11 @@ mod tests {
         handle_one_in_delivery_queue(
             &config,
             &resolvers,
-            &config.server.queues.dirpath.join("deliver/test"),
+            &config
+                .server
+                .queues
+                .dirpath
+                .join("deliver/deliver_test_basic"),
             &rule_engine,
         )
         .await
