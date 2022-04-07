@@ -20,7 +20,7 @@ use anyhow::Context;
 use trust_dns_resolver::TokioAsyncResolver;
 use vsmtp_common::{
     mail_context::MessageMetadata,
-    rcpt::Rcpt,
+    rcpt::{filter_by_domain_mut, Rcpt},
     re::{anyhow, log},
     transfer::EmailTransferStatus,
 };
@@ -44,9 +44,9 @@ impl Transport for Deliver {
         let envelop = super::build_lettre_envelop(from, &to[..])
             .context("failed to build envelop to deliver email")?;
 
-        let mut to = rcpt_by_domain(to);
+        let mut filtered_rcpt = filter_by_domain_mut(to);
 
-        for (query, rcpt) in &mut to {
+        for (query, rcpt) in &mut filtered_rcpt {
             // getting mx records for a set of recipients.
             let records = match get_mx_records(dns, query).await {
                 Ok(records) => records,
@@ -122,20 +122,6 @@ impl Transport for Deliver {
     }
 }
 
-/// filter recipients by domain name.
-fn rcpt_by_domain(rcpt: &mut [Rcpt]) -> std::collections::HashMap<String, Vec<&mut Rcpt>> {
-    rcpt.iter_mut()
-        .fold(std::collections::HashMap::new(), |mut acc, rcpt| {
-            if acc.contains_key(rcpt.address.domain()) {
-                acc.get_mut(rcpt.address.domain()).unwrap().push(rcpt);
-            } else {
-                acc.insert(rcpt.address.domain().to_string(), vec![rcpt]);
-            }
-
-            acc
-        })
-}
-
 /// fetch mx records for a specific domain.
 async fn get_mx_records(
     resolver: &trust_dns_resolver::TokioAsyncResolver,
@@ -185,13 +171,14 @@ mod test {
         // FIXME: find a way to guarantee that the mx records exists.
         let mut config = Config::default();
         config.server.dns = ConfigServerDNS::System;
-        let dns = vsmtp_config::build_dns(&config).unwrap();
+        let resolvers = vsmtp_config::build_resolvers(&config).unwrap();
+        let dns = resolvers.get(&config.server.domain).unwrap();
 
-        get_mx_records(&dns, "google.com")
+        get_mx_records(dns, "google.com")
             .await
             .expect("couldn't find any mx records for google.com");
 
-        assert!(get_mx_records(&dns, "invalid_query").await.is_err());
+        assert!(get_mx_records(dns, "invalid_query").await.is_err());
     }
 
     #[tokio::test]

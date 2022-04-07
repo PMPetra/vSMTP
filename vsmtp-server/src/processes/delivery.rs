@@ -58,10 +58,10 @@ pub async fn start(
         "vDeliver (delivery) booting, flushing queue.",
     );
 
-    let (default_resolver, resolvers) =
+    let resolvers =
         vsmtp_config::build_resolvers(&config).context("could not initialize dns for delivery")?;
 
-    flush_deliver_queue(&config, &default_resolver, &resolvers, &rule_engine).await?;
+    flush_deliver_queue(&config, &resolvers, &rule_engine).await?;
 
     let mut flush_deferred_interval =
         tokio::time::interval(config.server.queues.delivery.deferred_retry_period);
@@ -69,11 +69,8 @@ pub async fn start(
     loop {
         tokio::select! {
             Some(pm) = delivery_receiver.recv() => {
-                // FIXME: transports are mutable, so must be in a mutex
-                // for a delivery in a separated thread...
                 if let Err(error) = handle_one_in_delivery_queue(
                     &config,
-                    &default_resolver,
                     &resolvers,
                     &std::path::PathBuf::from_iter([
                         Queue::Deliver.to_path(&config.server.queues.dirpath)?,
@@ -94,7 +91,7 @@ pub async fn start(
                     target: DELIVER,
                     "vDeliver (deferred) cronjob delay elapsed, flushing queue.",
                 );
-                flush_deferred_queue(&config, &default_resolver, &resolvers).await?;
+                flush_deferred_queue(&config, &resolvers).await?;
             }
         };
     }
@@ -105,12 +102,20 @@ pub async fn start(
 /// recipients tagged with the Sent email_status are discarded.
 async fn send_email(
     config: &Config,
-    dns: &TokioAsyncResolver,
+    resolvers: &std::collections::HashMap<String, TokioAsyncResolver>,
     metadata: &vsmtp_common::mail_context::MessageMetadata,
     from: &vsmtp_common::address::Address,
     to: &[vsmtp_common::rcpt::Rcpt],
     body: &Body,
 ) -> anyhow::Result<Vec<vsmtp_common::rcpt::Rcpt>> {
+    let resolver = if from.domain() == config.server.domain {
+        resolvers.get(&config.server.domain).unwrap()
+    } else if let Some(resolver) = resolvers.get(from.domain()) {
+        resolver
+    } else {
+        anyhow::bail!("no dns configured for {from}");
+    };
+
     // filtering recipients by domains and delivery method.
     let mut triage = vsmtp_common::rcpt::filter_by_transfer_method(to);
 
@@ -134,7 +139,7 @@ async fn send_email(
         };
 
         transport
-            .deliver(config, dns, metadata, from, &mut rcpt[..], &content)
+            .deliver(config, resolver, metadata, from, &mut rcpt[..], &content)
             .await
             .with_context(|| {
                 format!("failed to deliver email using '{method}' for group '{rcpt:?}'")

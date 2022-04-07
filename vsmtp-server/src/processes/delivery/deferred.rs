@@ -16,14 +16,11 @@ use vsmtp_config::{log_channel::DELIVER, Config};
 
 pub async fn flush_deferred_queue(
     config: &Config,
-    default_resolver: &TokioAsyncResolver,
     resolvers: &std::collections::HashMap<String, TokioAsyncResolver>,
 ) -> anyhow::Result<()> {
     let dir_entries = std::fs::read_dir(Queue::Deferred.to_path(&config.server.queues.dirpath)?)?;
     for path in dir_entries {
-        if let Err(e) =
-            handle_one_in_deferred_queue(config, default_resolver, resolvers, &path?.path()).await
-        {
+        if let Err(e) = handle_one_in_deferred_queue(config, resolvers, &path?.path()).await {
             log::warn!("{}", e);
         }
     }
@@ -36,7 +33,6 @@ pub async fn flush_deferred_queue(
 //       https://www.postfix.org/QSHAPE_README.html#queues
 async fn handle_one_in_deferred_queue(
     config: &Config,
-    default_resolver: &TokioAsyncResolver,
     resolvers: &std::collections::HashMap<String, TokioAsyncResolver>,
     path: &std::path::Path,
 ) -> anyhow::Result<()> {
@@ -62,21 +58,11 @@ async fn handle_one_in_deferred_queue(
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("email metadata not available in deferred email"))?;
 
-    let from_domain = ctx.envelop.mail_from.domain();
-
-    let resolver = if from_domain == config.server.domain {
-        default_resolver
-    } else if let Some(resolver) = resolvers.get(from_domain) {
-        resolver
-    } else {
-        anyhow::bail!("no dns configured for {from_domain}");
-    };
-
     // TODO: at this point, only HeldBack recipients should be present in the queue.
     //       check if it is true or not.
     ctx.envelop.rcpt = send_email(
         config,
-        resolver,
+        resolvers,
         metadata,
         &ctx.envelop.mail_from,
         &ctx.envelop.rcpt,
@@ -168,11 +154,10 @@ mod tests {
             )
             .unwrap();
 
-        let (default_resolver, resolvers) = build_resolvers(&config).unwrap();
+        let resolvers = build_resolvers(&config).unwrap();
 
         handle_one_in_deferred_queue(
             &config,
-            &default_resolver,
             &resolvers,
             &config.server.queues.dirpath.join("deferred/test"),
         )

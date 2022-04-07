@@ -28,17 +28,14 @@ use trust_dns_resolver::{
 /// # Errors
 pub fn build_resolvers(
     config: &Config,
-) -> Result<
-    (
-        TokioAsyncResolver,
-        std::collections::HashMap<String, TokioAsyncResolver>,
-    ),
-    ResolveError,
-> {
-    let default_resolver = build_dns_from_config(&config.server.dns)?;
-
+) -> Result<std::collections::HashMap<String, TokioAsyncResolver>, ResolveError> {
     let mut resolvers = std::collections::HashMap::<String, TokioAsyncResolver>::with_capacity(
-        config.server.r#virtual.len(),
+        config.server.r#virtual.len() + 1,
+    );
+
+    resolvers.insert(
+        config.server.domain.clone(),
+        build_dns_from_config(&config.server.dns)?,
     );
 
     for virtual_domain in &config.server.r#virtual {
@@ -48,7 +45,7 @@ pub fn build_resolvers(
         );
     }
 
-    Ok((default_resolver, resolvers))
+    Ok(resolvers)
 }
 
 /// build an async dns using tokio & trust_dns from configuration.
