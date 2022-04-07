@@ -58,9 +58,10 @@ pub async fn start(
         "vDeliver (delivery) booting, flushing queue.",
     );
 
-    let dns = vsmtp_config::build_dns(&config).context("could not initialize the delivery dns")?;
+    let (default_resolver, resolvers) =
+        vsmtp_config::build_resolvers(&config).context("could not initialize dns for delivery")?;
 
-    flush_deliver_queue(&config, &dns, &rule_engine).await?;
+    flush_deliver_queue(&config, &default_resolver, &resolvers, &rule_engine).await?;
 
     let mut flush_deferred_interval =
         tokio::time::interval(config.server.queues.delivery.deferred_retry_period);
@@ -72,7 +73,8 @@ pub async fn start(
                 // for a delivery in a separated thread...
                 if let Err(error) = handle_one_in_delivery_queue(
                     &config,
-                    &dns,
+                    &default_resolver,
+                    &resolvers,
                     &std::path::PathBuf::from_iter([
                         Queue::Deliver.to_path(&config.server.queues.dirpath)?,
                         std::path::Path::new(&pm.message_id).to_path_buf(),
@@ -92,7 +94,7 @@ pub async fn start(
                     target: DELIVER,
                     "vDeliver (deferred) cronjob delay elapsed, flushing queue.",
                 );
-                flush_deferred_queue(&config, &dns).await?;
+                flush_deferred_queue(&config, &default_resolver, &resolvers).await?;
             }
         };
     }
@@ -159,7 +161,7 @@ fn move_to_queue(config: &Config, ctx: &MailContext) -> anyhow::Result<()> {
     {
         Queue::Deferred
             .write_to_queue(config, ctx)
-            .context("failed to move message from delivery queue to deferred queue")?;
+            .context("failed to write message to deferred queue")?;
     }
 
     if ctx.envelop.rcpt.iter().any(|rcpt| {
@@ -168,7 +170,7 @@ fn move_to_queue(config: &Config, ctx: &MailContext) -> anyhow::Result<()> {
     }) {
         Queue::Dead
             .write_to_queue(config, ctx)
-            .context("failed to move message from delivery queue to dead queue")?;
+            .context("failed write message to dead queue")?;
     }
 
     Ok(())

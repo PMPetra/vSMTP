@@ -156,7 +156,7 @@ pub struct ConfigServerVirtual {
     // TODO: parse valid fqdn
     pub domain: String,
     pub tls: ConfigServerVirtualTls,
-    pub dns: ConfigServerVirtualDns,
+    pub dns: ConfigServerDNS,
 }
 
 impl ConfigServerVirtual {
@@ -170,7 +170,7 @@ impl ConfigServerVirtual {
         Ok(Self {
             domain: domain.to_string(),
             tls: ConfigServerVirtualTls::from_path(certificate, private_key)?,
-            dns: ConfigServerVirtualDns::default(),
+            dns: ConfigServerDNS::default(),
         })
     }
 }
@@ -216,14 +216,6 @@ impl ConfigServerVirtualTls {
             sender_tlsa_digest: ConfigServerVirtualTls::default_sender_tlsa_digest(),
         })
     }
-}
-
-#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct ConfigServerVirtualDns {
-    // NOTE: trust-dns only enable the user to validate dns queries with dnssec,
-    //       None / May / Must options cannot be used here.
-    pub dnssec: bool,
 }
 
 /// If a TLS configuration is provided, configure how the connection should be treated

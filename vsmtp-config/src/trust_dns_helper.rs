@@ -15,18 +15,49 @@
  *
 */
 
-use crate::Config;
+use crate::{Config, ConfigServerDNS};
 use trust_dns_resolver::{
     config::{ResolverConfig, ResolverOpts},
     error::ResolveError,
     TokioAsyncResolver,
 };
 
+/// build the default resolver from the dns config, and multiple resolvers
+/// for each virtual domains.
+///
+/// # Errors
+pub fn build_resolvers(
+    config: &Config,
+) -> Result<
+    (
+        TokioAsyncResolver,
+        std::collections::HashMap<String, TokioAsyncResolver>,
+    ),
+    ResolveError,
+> {
+    let default_resolver = build_dns_from_config(&config.server.dns)?;
+
+    let mut resolvers = std::collections::HashMap::<String, TokioAsyncResolver>::with_capacity(
+        config.server.r#virtual.len(),
+    );
+
+    for virtual_domain in &config.server.r#virtual {
+        resolvers.insert(
+            virtual_domain.domain.clone(),
+            build_dns_from_config(&virtual_domain.dns)?,
+        );
+    }
+
+    Ok((default_resolver, resolvers))
+}
+
 /// build an async dns using tokio & trust_dns from configuration.
 ///
 /// # Errors
-pub fn build_dns(config: &Config) -> Result<TokioAsyncResolver, ResolveError> {
-    match &config.server.dns {
+///
+/// * Failed to create the resolver.
+fn build_dns_from_config(config: &ConfigServerDNS) -> Result<TokioAsyncResolver, ResolveError> {
+    match &config {
         crate::config::ConfigServerDNS::Google => {
             TokioAsyncResolver::tokio(ResolverConfig::google(), ResolverOpts::default())
         }
