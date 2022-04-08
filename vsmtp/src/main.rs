@@ -17,8 +17,8 @@
 use anyhow::Context;
 use vsmtp::{Args, Commands};
 use vsmtp_common::{
-    libc_abstraction::{daemon, setgid, setuid, ForkResult},
-    re::{anyhow, log},
+    libc_abstraction::{daemon, initgroups, setgid, setuid},
+    re::{anyhow, log, serde_json},
 };
 use vsmtp_config::{get_log4rs_config, re::log4rs, Config};
 use vsmtp_server::start_runtime;
@@ -31,7 +31,14 @@ fn socket_bind_anyhow<A: std::net::ToSocketAddrs + std::fmt::Debug>(
     })
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() {
+    if let Err(e) = main2() {
+        log::error!("{e}");
+        println!("{e}");
+    }
+}
+
+fn main2() -> anyhow::Result<()> {
     let args = <Args as clap::StructOpt>::parse();
 
     let config = match args.config {
@@ -64,30 +71,33 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    get_log4rs_config(&config, args.no_daemon)
-        .context("Logs configuration contain error")
-        .map(log4rs::init_config)
-        .context("Cannot initialize logs")??;
-
     let sockets = (
         socket_bind_anyhow(&config.server.interfaces.addr[..])?,
         socket_bind_anyhow(&config.server.interfaces.addr_submission[..])?,
         socket_bind_anyhow(&config.server.interfaces.addr_submissions[..])?,
     );
 
-    if args.no_daemon {
-        start_runtime(std::sync::Arc::new(config), sockets)
-    } else {
-        match daemon()? {
-            ForkResult::Child => {
-                setgid(config.server.system.group.gid())?;
-                setuid(config.server.system.user.uid())?;
-                start_runtime(std::sync::Arc::new(config), sockets)
-            }
-            ForkResult::Parent(pid) => {
-                log::info!("vSMTP running in process id={pid}");
-                Ok(())
-            }
-        }
+    if !args.no_daemon {
+        daemon(false, false)?;
+        initgroups(
+            config.server.system.user.name().to_str().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "user '{:?}' is not UTF-8 valid",
+                    config.server.system.user.name()
+                )
+            })?,
+            config.server.system.group.gid(),
+        )?;
+        // setresgid ?
+        setgid(config.server.system.group.gid())?;
+        // setresuid ?
+        setuid(config.server.system.user.uid())?;
     }
+
+    get_log4rs_config(&config, args.no_daemon)
+        .context("Logs configuration contain error")
+        .map(log4rs::init_config)
+        .context("Cannot initialize logs")??;
+
+    start_runtime(std::sync::Arc::new(config), sockets)
 }
