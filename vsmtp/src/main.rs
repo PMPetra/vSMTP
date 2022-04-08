@@ -31,14 +31,7 @@ fn socket_bind_anyhow<A: std::net::ToSocketAddrs + std::fmt::Debug>(
     })
 }
 
-fn main() {
-    if let Err(e) = main2() {
-        log::error!("{e}");
-        println!("{e}");
-    }
-}
-
-fn main2() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
     let args = <Args as clap::StructOpt>::parse();
 
     let config = match args.config {
@@ -99,5 +92,8 @@ fn main2() -> anyhow::Result<()> {
         .map(log4rs::init_config)
         .context("Cannot initialize logs")??;
 
-    start_runtime(std::sync::Arc::new(config), sockets)
+    start_runtime(std::sync::Arc::new(config), sockets).map_err(|e| {
+        log::error!("vSMTP terminating error: '{e}'");
+        e
+    })
 }
