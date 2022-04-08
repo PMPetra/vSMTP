@@ -7,7 +7,8 @@ use crate::{
         ConfigServerQueues, ConfigServerSMTP, ConfigServerSMTPAuth, ConfigServerSMTPError,
         ConfigServerSMTPTimeoutClient, ConfigServerSystem, ConfigServerSystemThreadPool,
     },
-    Config, ConfigServerTls, ConfigServerVirtualTls, Service, TlsSecurityLevel,
+    Config, ConfigServerTls, ConfigServerVirtualTls, ResolverOptsWrapper, Service,
+    TlsSecurityLevel,
 };
 use vsmtp_common::{
     auth::Mechanism,
@@ -327,6 +328,54 @@ impl ConfigServerSMTP {
 impl Default for ConfigServerDNS {
     fn default() -> Self {
         Self::System
+    }
+}
+
+impl Default for ResolverOptsWrapper {
+    fn default() -> Self {
+        Self {
+            timeout: std::time::Duration::from_secs(5),
+            attempts: 2,
+            rotate: false,
+            dnssec: false,
+            ip_strategy: trust_dns_resolver::config::LookupIpStrategy::default(),
+            cache_size: 32,
+            use_hosts_file: true,
+            num_concurrent_reqs: 2,
+        }
+    }
+}
+
+impl ResolverOptsWrapper {
+    pub(crate) const fn default_timeout() -> std::time::Duration {
+        std::time::Duration::from_secs(5)
+    }
+
+    pub(crate) const fn default_attempts() -> usize {
+        2
+    }
+    pub(crate) const fn default_rotate() -> bool {
+        false
+    }
+
+    pub(crate) const fn default_dnssec() -> bool {
+        false
+    }
+
+    pub(crate) fn default_ip_strategy() -> trust_dns_resolver::config::LookupIpStrategy {
+        trust_dns_resolver::config::LookupIpStrategy::default()
+    }
+
+    pub(crate) const fn default_cache_size() -> usize {
+        32
+    }
+
+    pub(crate) const fn default_use_hosts_file() -> bool {
+        true
+    }
+
+    pub(crate) const fn default_num_concurrent_reqs() -> usize {
+        2
     }
 }
 

@@ -19,7 +19,7 @@ use crate::{
         TlsSecurityLevel,
     },
     parser::{tls_certificate, tls_private_key},
-    ConfigServerSMTPAuth, Service,
+    ConfigServerSMTPAuth, ResolverOptsWrapper, Service,
 };
 use vsmtp_common::{
     auth::Mechanism,
@@ -603,7 +603,9 @@ impl Builder<WantsServerDNS> {
         Builder::<WantsServerVirtual> {
             state: WantsServerVirtual {
                 parent: self.state,
-                config: ConfigServerDNS::Google,
+                config: ConfigServerDNS::Google {
+                    options: ResolverOptsWrapper::default(),
+                },
             },
         }
     }
@@ -614,7 +616,9 @@ impl Builder<WantsServerDNS> {
         Builder::<WantsServerVirtual> {
             state: WantsServerVirtual {
                 parent: self.state,
-                config: ConfigServerDNS::CloudFlare,
+                config: ConfigServerDNS::CloudFlare {
+                    options: ResolverOptsWrapper::default(),
+                },
             },
         }
     }
@@ -636,7 +640,7 @@ impl Builder<WantsServerDNS> {
     pub fn with_dns(
         self,
         config: trust_dns_resolver::config::ResolverConfig,
-        options: trust_dns_resolver::config::ResolverOpts,
+        options: ResolverOptsWrapper,
     ) -> Builder<WantsServerVirtual> {
         Builder::<WantsServerVirtual> {
             state: WantsServerVirtual {

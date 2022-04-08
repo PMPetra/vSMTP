@@ -108,6 +108,7 @@ async fn send_email(
     to: &[vsmtp_common::rcpt::Rcpt],
     body: &Body,
 ) -> anyhow::Result<Vec<vsmtp_common::rcpt::Rcpt>> {
+    // getting the dns configured for right domain / virtual domain.
     let resolver = if from.domain() == config.server.domain {
         resolvers.get(&config.server.domain).unwrap()
     } else if let Some(resolver) = resolvers.get(from.domain()) {
@@ -155,8 +156,8 @@ async fn send_email(
         .collect::<Vec<_>>())
 }
 
+// FIXME: could be optimized by checking both conditions with the same iterator.
 /// copy the message into the deferred / dead queue if any recipient is held back or have failed delivery.
-/// FIXME: could be optimized by checking both conditions with the same iterator.
 fn move_to_queue(config: &Config, ctx: &MailContext) -> anyhow::Result<()> {
     if ctx
         .envelop

@@ -325,14 +325,47 @@ pub enum ConfigServerDNS {
     #[serde(rename = "system")]
     System,
     #[serde(rename = "google")]
-    Google,
+    Google { options: ResolverOptsWrapper },
     #[serde(rename = "cloudflare")]
-    CloudFlare,
+    CloudFlare { options: ResolverOptsWrapper },
     #[serde(rename = "custom")]
     Custom {
         config: trust_dns_resolver::config::ResolverConfig,
-        options: trust_dns_resolver::config::ResolverOpts,
+        options: ResolverOptsWrapper,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct ResolverOptsWrapper {
+    /// Specify the timeout for a request. Defaults to 5 seconds
+    #[serde(with = "humantime_serde")]
+    #[serde(default = "ResolverOptsWrapper::default_timeout")]
+    pub timeout: std::time::Duration,
+    /// Number of retries after lookup failure before giving up. Defaults to 2
+    #[serde(default = "ResolverOptsWrapper::default_attempts")]
+    pub attempts: usize,
+    /// Rotate through the resource records in the response (if there is more than one for a given name)
+    #[serde(default = "ResolverOptsWrapper::default_rotate")]
+    pub rotate: bool,
+    /// Use DNSSec to validate the request
+    #[serde(default = "ResolverOptsWrapper::default_dnssec")]
+    pub dnssec: bool,
+    /// The ip_strategy for the Resolver to use when lookup Ipv4 or Ipv6 addresses
+    #[serde(default = "ResolverOptsWrapper::default_ip_strategy")]
+    pub ip_strategy: trust_dns_resolver::config::LookupIpStrategy,
+    /// Cache size is in number of records (some records can be large)
+    #[serde(default = "ResolverOptsWrapper::default_cache_size")]
+    pub cache_size: usize,
+    /// Check /ect/hosts file before dns requery (only works for unix like OS)
+    #[serde(default = "ResolverOptsWrapper::default_use_hosts_file")]
+    pub use_hosts_file: bool,
+    /// Number of concurrent requests per query
+    ///
+    /// Where more than one nameserver is configured, this configures the resolver to send queries
+    /// to a number of servers in parallel. Defaults to 2; 0 or 1 will execute requests serially.
+    #[serde(default = "ResolverOptsWrapper::default_num_concurrent_reqs")]
+    pub num_concurrent_reqs: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]

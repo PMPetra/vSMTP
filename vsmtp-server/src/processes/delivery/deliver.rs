@@ -15,6 +15,7 @@ use vsmtp_common::{
 use vsmtp_config::{log_channel::DELIVER, Config};
 use vsmtp_rule_engine::rule_engine::{RuleEngine, RuleState};
 
+/// read all entries from the deliver queue & tries to send them.
 pub async fn flush_deliver_queue(
     config: &Config,
     resolvers: &std::collections::HashMap<String, TokioAsyncResolver>,
@@ -33,6 +34,12 @@ pub async fn flush_deliver_queue(
 }
 
 /// handle and send one email pulled from the delivery queue.
+///
+/// # Args
+/// * `config` - the server's config.
+/// * `resolvers` - a list of dns with their associated domains.
+/// * `path` - the path to the message file.
+/// * `rule_engine` - an instance of the rule engine.
 ///
 /// # Errors
 /// * failed to open the email.
