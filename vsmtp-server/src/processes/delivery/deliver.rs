@@ -173,7 +173,7 @@ mod tests {
                     body: Body::Raw("Date: bar\r\nFrom: foo\r\nHello world\r\n".to_string()),
                     metadata: Some(MessageMetadata {
                         timestamp: now,
-                        message_id: "deliver_test_basic".to_string(),
+                        message_id: "message_from_deliver_to_deferred".to_string(),
                         skipped: None,
                     }),
                 },
@@ -191,10 +191,17 @@ mod tests {
                 .server
                 .queues
                 .dirpath
-                .join("deliver/deliver_test_basic"),
+                .join("deliver/message_from_deliver_to_deferred"),
             &rule_engine,
         )
         .await
         .unwrap();
+
+        assert!(config
+            .server
+            .queues
+            .dirpath
+            .join("deferred/message_from_deliver_to_deferred")
+            .exists());
     }
 }
