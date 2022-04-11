@@ -14,7 +14,7 @@
  * this program. If not, see https://www.gnu.org/licenses/.
  *
 */
-use super::{get_mx_records, get_tlsa_records, Transport};
+use super::{get_mx_records, Transport};
 
 use anyhow::Context;
 use trust_dns_resolver::TokioAsyncResolver;
@@ -73,22 +73,11 @@ impl Transport for Deliver {
 
             let mut records = records.iter();
 
-            // we try to deliver the email to the recipients of the current group using found mail exchangers.
             for record in records.by_ref() {
                 let host = record.exchange().to_ascii();
-
-                if let (Ok(secure), _, _) = get_tlsa_records(dns, &host).await {
-                    for tlsa in secure {
-                        println!("secure tlsa: {tlsa:?}");
-                    }
-                }
-
-                for destination in dns.lookup_ip(&host).await?.iter() {
-                    if (send_email(config, &destination.to_string(), &envelop, from, content).await)
-                        .is_ok()
-                    {
-                        break;
-                    }
+                if (send_email(config, dns, &host, &envelop, from, content).await).is_ok() {
+                    // if a transfer succeeded, we can stop the lookup.
+                    break;
                 }
             }
 
@@ -121,6 +110,7 @@ impl Transport for Deliver {
 /// send an email using [lettre].
 async fn send_email(
     config: &Config,
+    resolver: &TokioAsyncResolver,
     target: &str,
     envelop: &lettre::address::Envelope,
     from: &vsmtp_common::address::Address,
@@ -128,7 +118,7 @@ async fn send_email(
 ) -> anyhow::Result<()> {
     lettre::AsyncTransport::send_raw(
         // TODO: transport should be cached.
-        &crate::transport::build_transport(config, from, target)?,
+        &crate::transport::build_transport(config, resolver, from, target).await?,
         envelop,
         content.as_bytes(),
     )
@@ -140,6 +130,7 @@ async fn send_email(
 #[cfg(test)]
 mod test {
 
+    use trust_dns_resolver::TokioAsyncResolver;
     use vsmtp_common::address::Address;
     use vsmtp_config::{Config, ConfigServerDNS};
 
@@ -164,9 +155,11 @@ mod test {
 
     #[tokio::test]
     async fn test_delivery() {
+        let config = Config::default();
         // NOTE: for this to return ok, we would need to setup a test server running locally.
         assert!(send_email(
-            &Config::default(),
+            &config,
+            &TokioAsyncResolver::tokio_from_system_conf().unwrap(),
             "localhost",
             &lettre::address::Envelope::new(
                 Some("a@a.a".parse().unwrap()),

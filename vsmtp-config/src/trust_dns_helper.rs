@@ -17,7 +17,6 @@
 
 use crate::{Config, ConfigServerDNS, ResolverOptsWrapper};
 use trust_dns_resolver::{config::ResolverConfig, error::ResolveError, TokioAsyncResolver};
-use vsmtp_common::re::anyhow;
 
 /// construct a [trust-dns] `ResolverOpts` struct from our wrapper.
 ///

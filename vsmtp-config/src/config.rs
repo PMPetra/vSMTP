@@ -193,10 +193,8 @@ pub struct ConfigServerVirtualTls {
         deserialize_with = "crate::parser::tls_private_key::deserialize"
     )]
     pub private_key: rustls::PrivateKey,
-    #[serde(default = "ConfigServerVirtualTls::default_sender_tls_policy")]
-    pub sender_tls_policy: TlsSecurityLevel,
-    #[serde(default = "ConfigServerVirtualTls::default_sender_tlsa_digest")]
-    pub sender_tlsa_digest: String,
+    #[serde(default = "ConfigServerVirtualTls::default_sender_security_level")]
+    pub sender_security_level: TlsSecurityLevel,
 }
 
 impl ConfigServerVirtualTls {
@@ -211,15 +209,14 @@ impl ConfigServerVirtualTls {
             protocol_version: vec![rustls::ProtocolVersion::TLSv1_3],
             certificate: tls_certificate::from_string(certificate)?,
             private_key: tls_private_key::from_string(private_key)?,
-
-            sender_tls_policy: ConfigServerVirtualTls::default_sender_tls_policy(),
-            sender_tlsa_digest: ConfigServerVirtualTls::default_sender_tlsa_digest(),
+            sender_security_level: ConfigServerVirtualTls::default_sender_security_level(),
         })
     }
 }
 
 /// If a TLS configuration is provided, configure how the connection should be treated
 #[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(tag = "level")]
 pub enum TlsSecurityLevel {
     /// Connection may stay in plain text for theirs transaction
     ///
@@ -228,7 +225,7 @@ pub enum TlsSecurityLevel {
     /// Connection must be under a TLS tunnel (using STARTTLS mechanism or using port 465)
     Encrypt,
     /// DANE protocol using TLSA dns records to establish a secure connexion with a distant server.
-    Dane,
+    Dane { port: u16 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]

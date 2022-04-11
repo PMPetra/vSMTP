@@ -200,12 +200,8 @@ impl Default for ConfigQueueDelivery {
 }
 
 impl ConfigServerVirtualTls {
-    pub(crate) const fn default_sender_tls_policy() -> TlsSecurityLevel {
+    pub(crate) const fn default_sender_security_level() -> TlsSecurityLevel {
         TlsSecurityLevel::Encrypt
-    }
-
-    pub(crate) fn default_sender_tlsa_digest() -> String {
-        "SHA512".to_string()
     }
 }
 

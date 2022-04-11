@@ -63,6 +63,9 @@ pub mod rcpt;
 /// transfer method for delivery / forwarding.
 pub mod transfer;
 
+/// smtp related constants.
+pub mod smtp;
+
 mod mechanism;
 
 /// Data related to ESMTP Authentication
