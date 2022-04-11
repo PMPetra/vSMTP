@@ -71,7 +71,7 @@ impl ConfigServerSystem {
             Some(_) => "root",
             None => "vsmtp",
         })
-        .unwrap()
+        .expect("user 'vsmtp' not found")
     }
 
     pub(crate) fn default_group() -> users::Group {
@@ -79,7 +79,7 @@ impl ConfigServerSystem {
             Some(_) => "root",
             None => "vsmtp",
         })
-        .unwrap()
+        .expect("user 'vsmtp' not found")
     }
 }
 
@@ -334,14 +334,14 @@ impl Default for ConfigServerDNS {
 impl Default for ResolverOptsWrapper {
     fn default() -> Self {
         Self {
-            timeout: ResolverOptsWrapper::default_timeout(),
-            attempts: ResolverOptsWrapper::default_attempts(),
-            rotate: ResolverOptsWrapper::default_rotate(),
-            dnssec: ResolverOptsWrapper::default_dnssec(),
-            ip_strategy: ResolverOptsWrapper::default_ip_strategy(),
-            cache_size: ResolverOptsWrapper::default_cache_size(),
-            use_hosts_file: ResolverOptsWrapper::default_use_hosts_file(),
-            num_concurrent_reqs: ResolverOptsWrapper::default_num_concurrent_reqs(),
+            timeout: Self::default_timeout(),
+            attempts: Self::default_attempts(),
+            rotate: Self::default_rotate(),
+            dnssec: Self::default_dnssec(),
+            ip_strategy: Self::default_ip_strategy(),
+            cache_size: Self::default_cache_size(),
+            use_hosts_file: Self::default_use_hosts_file(),
+            num_concurrent_reqs: Self::default_num_concurrent_reqs(),
         }
     }
 }
