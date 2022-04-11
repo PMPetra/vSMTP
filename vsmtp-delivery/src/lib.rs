@@ -31,7 +31,7 @@
 pub mod transport {
     use anyhow::Context;
     use lettre::Tokio1Executor;
-    use trust_dns_resolver::TokioAsyncResolver;
+    use trust_dns_resolver::{error::ResolveError, TokioAsyncResolver};
     use vsmtp_common::{address::Address, mail_context::MessageMetadata, rcpt::Rcpt, re::anyhow};
     use vsmtp_config::Config;
 
@@ -149,6 +149,37 @@ pub mod transport {
                     parameters,
                 ))
                 .build(),
+        )
+    }
+
+    /// fetch mx records for a specific domain and order them by priority.
+    async fn get_mx_records(
+        resolver: &trust_dns_resolver::TokioAsyncResolver,
+        query: &str,
+    ) -> anyhow::Result<Vec<trust_dns_resolver::proto::rr::rdata::MX>> {
+        let mut records_by_priority = resolver
+            .mx_lookup(query)
+            .await?
+            .into_iter()
+            .collect::<Vec<_>>();
+        records_by_priority.sort_by_key(trust_dns_resolver::proto::rr::rdata::MX::preference);
+
+        Ok(records_by_priority)
+    }
+
+    /// fetch tlsa records for a specific domain. Ask concurrently for every smtp port.
+    async fn get_tlsa_records(
+        resolver: &trust_dns_resolver::TokioAsyncResolver,
+        target: &str,
+    ) -> (
+        Result<trust_dns_resolver::lookup::TlsaLookup, ResolveError>,
+        Result<trust_dns_resolver::lookup::TlsaLookup, ResolveError>,
+        Result<trust_dns_resolver::lookup::TlsaLookup, ResolveError>,
+    ) {
+        tokio::join!(
+            resolver.tlsa_lookup(create_tlsa_query(target, 465, "tcp")),
+            resolver.tlsa_lookup(create_tlsa_query(target, 587, "tcp")),
+            resolver.tlsa_lookup(create_tlsa_query(target, 25, "tcp"))
         )
     }
 

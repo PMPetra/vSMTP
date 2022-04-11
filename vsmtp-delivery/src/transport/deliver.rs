@@ -14,7 +14,7 @@
  * this program. If not, see https://www.gnu.org/licenses/.
  *
 */
-use super::Transport;
+use super::{get_mx_records, get_tlsa_records, Transport};
 
 use anyhow::Context;
 use trust_dns_resolver::TokioAsyncResolver;
@@ -75,19 +75,15 @@ impl Transport for Deliver {
 
             // we try to deliver the email to the recipients of the current group using found mail exchangers.
             for record in records.by_ref() {
-                for destination in dns.lookup_ip(&record.exchange().to_ascii()).await?.iter() {
-                    for tlsa in dns
-                        .tlsa_lookup(crate::transport::create_tlsa_query(
-                            &record.exchange().to_ascii(),
-                            25,
-                            "tcp",
-                        ))
-                        .await
-                        .unwrap()
-                    {
-                        println!("tlsa: {tlsa:#?}");
-                    }
+                let host = record.exchange().to_ascii();
 
+                if let (Ok(secure), _, _) = get_tlsa_records(dns, &host).await {
+                    for tlsa in secure {
+                        println!("secure tlsa: {tlsa:?}");
+                    }
+                }
+
+                for destination in dns.lookup_ip(&host).await?.iter() {
                     if (send_email(config, &destination.to_string(), &envelop, from, content).await)
                         .is_ok()
                     {
@@ -120,21 +116,6 @@ impl Transport for Deliver {
 
         Ok(())
     }
-}
-
-/// fetch mx records for a specific domain.
-async fn get_mx_records(
-    resolver: &trust_dns_resolver::TokioAsyncResolver,
-    query: &str,
-) -> anyhow::Result<Vec<trust_dns_resolver::proto::rr::rdata::MX>> {
-    let mut records_by_priority = resolver
-        .mx_lookup(query)
-        .await?
-        .into_iter()
-        .collect::<Vec<_>>();
-    records_by_priority.sort_by_key(trust_dns_resolver::proto::rr::rdata::MX::preference);
-
-    Ok(records_by_priority)
 }
 
 /// send an email using [lettre].
