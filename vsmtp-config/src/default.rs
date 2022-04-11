@@ -201,7 +201,7 @@ impl Default for ConfigQueueDelivery {
 
 impl ConfigServerVirtualTls {
     pub(crate) const fn default_sender_tls_policy() -> TlsSecurityLevel {
-        TlsSecurityLevel::May
+        TlsSecurityLevel::Encrypt
     }
 
     pub(crate) fn default_sender_tlsa_digest() -> String {
@@ -334,14 +334,14 @@ impl Default for ConfigServerDNS {
 impl Default for ResolverOptsWrapper {
     fn default() -> Self {
         Self {
-            timeout: std::time::Duration::from_secs(5),
-            attempts: 2,
-            rotate: false,
-            dnssec: false,
-            ip_strategy: trust_dns_resolver::config::LookupIpStrategy::default(),
-            cache_size: 32,
-            use_hosts_file: true,
-            num_concurrent_reqs: 2,
+            timeout: ResolverOptsWrapper::default_timeout(),
+            attempts: ResolverOptsWrapper::default_attempts(),
+            rotate: ResolverOptsWrapper::default_rotate(),
+            dnssec: ResolverOptsWrapper::default_dnssec(),
+            ip_strategy: ResolverOptsWrapper::default_ip_strategy(),
+            cache_size: ResolverOptsWrapper::default_cache_size(),
+            use_hosts_file: ResolverOptsWrapper::default_use_hosts_file(),
+            num_concurrent_reqs: ResolverOptsWrapper::default_num_concurrent_reqs(),
         }
     }
 }
