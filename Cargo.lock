@@ -2118,6 +2118,7 @@ version = "0.10.2"
 dependencies = [
  "addr",
  "anyhow",
+ "base64",
  "libc",
  "log",
  "rsasl",
@@ -2145,6 +2146,7 @@ dependencies = [
  "trust-dns-resolver",
  "users",
  "vsmtp-common",
+ "vsmtp-test",
 ]
 
 [[package]]
@@ -2191,7 +2193,6 @@ name = "vsmtp-server"
 version = "0.10.2"
 dependencies = [
  "async-trait",
- "base64",
  "criterion",
  "fastrand",
  "lazy_static",
