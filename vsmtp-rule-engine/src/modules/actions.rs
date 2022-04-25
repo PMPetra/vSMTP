@@ -60,6 +60,11 @@ pub mod actions {
         Status::Deny
     }
 
+    #[must_use]
+    pub fn send(message: &str) -> Status {
+        Status::Send(vsmtp_common::status::SendPacket::Str(message.to_string()))
+    }
+
     ///
     pub fn log(level: &str, message: &str) {
         match level {
@@ -775,14 +780,20 @@ mod test {
 
     use super::{create_app_folder, set_transport, set_transport_for};
     use vsmtp_common::{
-        address::Address, mail_context::MailContext, rcpt::Rcpt, transfer::Transfer,
+        address::Address,
+        mail_context::{ConnectionContext, MailContext},
+        rcpt::Rcpt,
+        transfer::Transfer,
     };
     use vsmtp_config::Config;
 
     fn get_default_context() -> MailContext {
         MailContext {
             body: vsmtp_common::mail_context::Body::Empty,
-            connection_timestamp: std::time::SystemTime::now(),
+            connection: ConnectionContext {
+                timestamp: std::time::SystemTime::now(),
+                credentials: None,
+            },
             client_addr: std::net::SocketAddr::new(
                 std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
                 0,
