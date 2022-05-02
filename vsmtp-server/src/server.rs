@@ -141,6 +141,8 @@ impl Server {
                     (stream, client_addr, ConnectionKind::Tunneled)
                 }
             };
+            stream.set_nodelay(true)?;
+
             log::warn!("Connection from: {:?}, {}", kind, client_addr);
 
             if self.config.server.client_count_max != -1

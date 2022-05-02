@@ -42,7 +42,7 @@ where
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(worker_thread_count)
         .enable_all()
-        .thread_name(name.clone())
+        .thread_name(&name)
         .build()?;
 
     std::thread::Builder::new()
@@ -85,16 +85,13 @@ pub fn start_runtime(
         .map(|q| vsmtp_common::queue_path!(create_if_missing => &config.server.queues.dirpath, q))
         .collect::<std::io::Result<Vec<_>>>()?;
 
-    let (main_runtime_sender, mut main_runtime_receiver) =
-        tokio::sync::mpsc::channel::<anyhow::Result<()>>(
-            config.server.queues.delivery.channel_size,
-        );
+    let mut error_handler = tokio::sync::mpsc::channel::<anyhow::Result<()>>(3);
 
-    let (delivery_sender, delivery_receiver) =
+    let delivery_channel =
         tokio::sync::mpsc::channel::<ProcessMessage>(config.server.queues.delivery.channel_size);
 
-    let (working_sender, working_receiver) =
-        tokio::sync::mpsc::channel::<ProcessMessage>(config.server.queues.delivery.channel_size);
+    let working_channel =
+        tokio::sync::mpsc::channel::<ProcessMessage>(config.server.queues.working.channel_size);
 
     let rule_engine = std::sync::Arc::new(std::sync::RwLock::new(RuleEngine::new(
         &config,
@@ -102,26 +99,26 @@ pub fn start_runtime(
     )?));
 
     let _tasks_delivery = init_runtime(
-        main_runtime_sender.clone(),
+        error_handler.0.clone(),
         "vsmtp-delivery",
         config.server.system.thread_pool.delivery,
-        delivery::start(config.clone(), rule_engine.clone(), delivery_receiver),
+        delivery::start(config.clone(), rule_engine.clone(), delivery_channel.1),
     )?;
 
     let _tasks_processing = init_runtime(
-        main_runtime_sender.clone(),
+        error_handler.0.clone(),
         "vsmtp-processing",
         config.server.system.thread_pool.processing,
         postq::start(
             config.clone(),
             rule_engine.clone(),
-            working_receiver,
-            delivery_sender.clone(),
+            working_channel.1,
+            delivery_channel.0.clone(),
         ),
     )?;
 
     let _tasks_receiver = init_runtime(
-        main_runtime_sender,
+        error_handler.0,
         "vsmtp-receiver",
         config.server.system.thread_pool.receiver,
         async move {
@@ -129,8 +126,8 @@ pub fn start_runtime(
                 config,
                 sockets,
                 rule_engine,
-                working_sender,
-                delivery_sender,
+                working_channel.0,
+                delivery_channel.0,
             )?;
             log::info!(
                 target: log_channels::RUNTIME,
@@ -141,7 +138,8 @@ pub fn start_runtime(
         },
     )?;
 
-    main_runtime_receiver
+    error_handler
+        .1
         .blocking_recv()
         .ok_or_else(|| anyhow::anyhow!("Channel closed, but should not"))?
 
