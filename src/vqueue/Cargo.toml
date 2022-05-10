@@ -1,0 +1,25 @@
+[package]
+edition = "2021"
+
+name = "vqueue"
+version = "1.0.0"
+license = "GPL-3.0-only"
+
+rust-version = "1.58"
+
+authors = ["Team viridIT <https://viridit.com/>"]
+description = "vSMTP's queues mananger. Secured, Faster and Greener"
+homepage = "https://github.com/viridIT/vSMTP"
+repository = "https://github.com/viridIT/vSMTP"
+
+publish = false
+
+[dependencies]
+vsmtp-common = { path = "../vsmtp/vsmtp-common" }
+vsmtp-config = { path = "../vsmtp/vsmtp-config" }
+
+clap = { version = "3.1.17", features = ["derive"] }
+itertools = "0.10.3"
+
+[dev-dependencies]
+pretty_assertions = "1.2.1"

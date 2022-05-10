@@ -1,0 +1,61 @@
+[package]
+edition = "2021"
+
+name = "vsmtp-server"
+version = "1.0.0"
+license = "GPL-3.0-only"
+
+rust-version = "1.58"
+
+authors = ["Team viridIT <https://viridit.com/>"]
+description = "Next-gen MTA. Secured, Faster and Greener"
+homepage = "https://github.com/viridIT/vSMTP"
+repository = "https://github.com/viridIT/vSMTP"
+
+publish = false
+
+[dependencies]
+vsmtp-common = { path = "../vsmtp-common" }
+vsmtp-config = { path = "../vsmtp-config" }
+vsmtp-rule-engine = { path = "../vsmtp-rule-engine" }
+vsmtp-mail-parser = { path = "../vsmtp-mail-parser" }
+vsmtp-delivery = { path = "../vsmtp-delivery" }
+
+async-trait = "0.1.53"
+fastrand = "1.7.0"
+
+tokio = { version = "1.18.2", default-features = false, features = [
+    "macros",
+    "time",
+    "sync",
+    "net",
+    "io-util",
+    "rt-multi-thread",
+] }
+
+trust-dns-resolver = "0.21.2"
+time = { version = "0.3.9", default-features = false, features = [
+    "std",
+    "formatting",
+    "macros",
+] }
+
+tokio-rustls = "0.23.4"
+
+[dev-dependencies]
+vsmtp-test = { path = "../vsmtp-test" }
+pretty_assertions = "1.2.1"
+
+## Benchmark
+criterion = { version = "0.3.5", features = ["async_tokio"] }
+
+lettre = { version = "0.10.0-rc.6", default-features = false, features = [
+    "smtp-transport",
+    "builder",
+    "tokio1-rustls-tls",
+    "tracing",
+] }
+
+[[bench]]
+name = "receiver"
+harness = false
