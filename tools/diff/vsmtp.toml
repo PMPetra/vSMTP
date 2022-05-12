@@ -1,11 +1,14 @@
 version_requirement = "<2.0.0"
 
+[server]
+client_count_max = -1
+
 [server.system]
 user = "lala"
 group = "lala"
 
 [server.logs.level]
-default = "trace"
+default = "error"
 
 [server.interfaces]
 addr = ["127.0.0.1:10025"]
