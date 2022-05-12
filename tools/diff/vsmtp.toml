@@ -1,0 +1,25 @@
+version_requirement = "<2.0.0"
+
+[server.system]
+user = "lala"
+group = "lala"
+
+[server.logs.level]
+default = "trace"
+
+[server.interfaces]
+addr = ["127.0.0.1:10025"]
+addr_submission = ["127.0.0.1:10587"]
+addr_submissions = ["127.0.0.1:10465"]
+
+[server.logs]
+filepath = "./tools/diff/generated/vsmtp.log"
+
+[server.queues]
+dirpath = "./tools/diff/generated/spool"
+
+[app.vsl]
+filepath = "./tools/diff/main.vsl"
+
+[app.logs]
+filepath = "./tools/diff/generated/app.log"
