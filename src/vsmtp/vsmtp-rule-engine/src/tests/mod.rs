@@ -27,21 +27,6 @@ macro_rules! rules_path {
     ];
 }
 
-macro_rules! root_example {
-    ( $( $x:expr ),* ) => {
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join("examples/vsl")
-            .join(std::path::PathBuf::from_iter([ $( $x, )* ]))
-            .to_path_buf()
-    };
-}
-
 mod actions;
 mod email;
 mod engine;
@@ -70,7 +55,7 @@ pub mod helpers {
             .with_default_smtp_codes()
             .without_auth()
             .with_app_at_location(dirpath)
-            .with_vsl("./src/tests/empty_main.vsl")
+            .with_default_vsl_settings()
             .with_default_app_logs()
             .with_system_dns()
             .without_virtual_entries()
@@ -95,7 +80,7 @@ pub mod helpers {
             .with_default_smtp_codes()
             .without_auth()
             .with_app_at_location(dirpath)
-            .with_vsl("./src/tests/empty_main.vsl")
+            .with_default_vsl_settings()
             .with_default_app_logs()
             .with_system_dns()
             .without_virtual_entries()

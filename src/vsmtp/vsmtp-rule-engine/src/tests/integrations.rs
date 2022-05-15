@@ -20,15 +20,16 @@
 //       to locate vsl's example scripts.
 
 use vsmtp_common::{state::StateSMTP, status::Status};
+use vsmtp_test::vsl_example;
 
 use crate::{rule_engine::RuleEngine, rule_state::RuleState, tests::helpers::get_default_config};
 
 #[test]
 fn test_greylist() {
-    std::fs::File::create(root_example!["greylist/greylist.csv"]).unwrap();
+    std::fs::File::create(vsl_example!["greylist/greylist.csv"]).unwrap();
 
     let config = get_default_config("./tmp/app");
-    let re = RuleEngine::new(&config, &Some(root_example!["greylist/main.vsl"])).unwrap();
+    let re = RuleEngine::new(&config, &Some(vsl_example!["greylist/main.vsl"])).unwrap();
     let mut state = RuleState::new(&config, &re);
 
     assert_eq!(
@@ -36,7 +37,7 @@ fn test_greylist() {
         Status::Deny(None)
     );
 
-    let re = RuleEngine::new(&config, &Some(root_example!["greylist/main.vsl"])).unwrap();
+    let re = RuleEngine::new(&config, &Some(vsl_example!["greylist/main.vsl"])).unwrap();
     let mut state = RuleState::new(&config, &re);
 
     assert_eq!(
@@ -44,5 +45,5 @@ fn test_greylist() {
         Status::Accept
     );
 
-    std::fs::remove_file(root_example!["greylist/greylist.csv"]).unwrap();
+    std::fs::remove_file(vsl_example!["greylist/greylist.csv"]).unwrap();
 }

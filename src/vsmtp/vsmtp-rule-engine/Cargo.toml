@@ -59,3 +59,4 @@ wait-timeout = "0.2.0"
 
 [dev-dependencies]
 vsmtp-mail-parser = { path = "../vsmtp-mail-parser" }
+vsmtp-test = { path = "../vsmtp-test" }

@@ -17,12 +17,13 @@
 use crate::{rule_engine::RuleEngine, tests::helpers::get_default_state};
 use vsmtp_common::{addr, mail_context::Body, state::StateSMTP, status::Status, MailParser};
 use vsmtp_mail_parser::MailMimeParser;
+use vsmtp_test::vsl_example;
 
 #[test]
 fn test_connect_rules() {
     let re = RuleEngine::new(
         &vsmtp_config::Config::default(),
-        &Some(root_example!["rules/connect.vsl"]),
+        &Some(vsl_example!["rules/connect.vsl"]),
     )
     .unwrap();
     let (mut state, _) = get_default_state("./tmp/app");
@@ -42,7 +43,7 @@ fn test_connect_rules() {
 fn test_helo_rules() {
     let re = RuleEngine::new(
         &vsmtp_config::Config::default(),
-        &Some(root_example!["rules/helo.vsl"]),
+        &Some(vsl_example!["rules/helo.vsl"]),
     )
     .unwrap();
     let (mut state, _) = get_default_state("./tmp/app");
@@ -56,7 +57,7 @@ fn test_helo_rules() {
 fn test_mail_from_rules() {
     let re = RuleEngine::new(
         &vsmtp_config::Config::default(),
-        &Some(root_example!["rules/mail.vsl"]),
+        &Some(vsl_example!["rules/mail.vsl"]),
     )
     .unwrap();
 
@@ -93,7 +94,7 @@ This is a reply to your hello."#,
 fn test_rcpt_rules() {
     let re = RuleEngine::new(
         &vsmtp_config::Config::default(),
-        &Some(root_example!["rules/rcpt.vsl"]),
+        &Some(vsl_example!["rules/rcpt.vsl"]),
     )
     .unwrap();
 

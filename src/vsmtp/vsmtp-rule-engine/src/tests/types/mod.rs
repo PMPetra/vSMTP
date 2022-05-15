@@ -17,6 +17,7 @@
 use crate::{rule_engine::RuleEngine, rule_state::RuleState, tests::helpers::get_default_state};
 use vsmtp_common::{addr, mail_context::Body, state::StateSMTP, status::Status};
 use vsmtp_config::{builder::VirtualEntry, Config, ConfigServerDNS};
+use vsmtp_test::root_example;
 
 #[test]
 fn test_status() {
@@ -97,7 +98,7 @@ fn test_services() {
         .with_default_smtp_codes()
         .without_auth()
         .with_app_at_location("./tmp/app")
-        .with_vsl("./tmp/nothing")
+        .with_default_vsl_settings()
         .with_default_app_logs()
         .with_system_dns()
         .without_virtual_entries()
@@ -130,17 +131,17 @@ fn test_config_display() {
         .with_default_smtp_codes()
         .without_auth()
         .with_app_at_location("./tmp/app")
-        .with_vsl("./tmp/nothing")
+        .with_default_vsl_settings()
         .with_default_app_logs()
         .with_system_dns()
         .with_virtual_entries(&[VirtualEntry {
             domain: "domain@example.com".to_string(),
             tls: Some((
-                root_example!["../config/tls/certificate.crt"]
+                root_example!["config/tls/certificate.crt"]
                     .to_str()
                     .unwrap()
                     .to_string(),
-                root_example!["../config/tls/private_key.key"]
+                root_example!["config/tls/private_key.key"]
                     .to_str()
                     .unwrap()
                     .to_string(),

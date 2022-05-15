@@ -30,12 +30,13 @@ use vsmtp_common::{
     transfer::Transfer,
 };
 use vsmtp_config::ConfigServerVirtual;
+use vsmtp_test::vsl_example;
 
 #[test]
 fn test_logs() {
     let re = RuleEngine::new(
         &vsmtp_config::Config::default(),
-        &Some(root_example!["actions/logs.vsl"]),
+        &Some(vsl_example!["actions/logs.vsl"]),
     )
     .unwrap();
     let (mut state, _) = get_default_state("./tmp/app");
@@ -49,7 +50,7 @@ fn test_logs() {
 fn test_users() {
     let re = RuleEngine::new(
         &vsmtp_config::Config::default(),
-        &Some(root_example!["actions/utils.vsl"]),
+        &Some(vsl_example!["actions/utils.vsl"]),
     )
     .unwrap();
     let (mut state, _) = get_default_state("./tmp/app");
@@ -62,8 +63,8 @@ fn test_users() {
 
 #[test]
 fn test_send_mail() {
-    let (mut state, config) = get_default_state(format!("{}", root_example!["actions"].display()));
-    let re = RuleEngine::new(&config, &Some(root_example!["actions/send_mail.vsl"])).unwrap();
+    let (mut state, config) = get_default_state(format!("{}", vsl_example!["actions"].display()));
+    let re = RuleEngine::new(&config, &Some(vsl_example!["actions/send_mail.vsl"])).unwrap();
 
     // TODO: add test to send a valid email.
     assert_eq!(re.run_when(&mut state, &StateSMTP::Connect), Status::Accept);
@@ -73,7 +74,7 @@ fn test_send_mail() {
 fn test_context_write() {
     let re = RuleEngine::new(
         &vsmtp_config::Config::default(),
-        &Some(root_example!["actions/write.vsl"]),
+        &Some(vsl_example!["actions/write.vsl"]),
     )
     .unwrap();
     let (mut state, _) = get_default_state("./tmp/app");
@@ -119,7 +120,7 @@ This is a raw email.
 fn test_context_dump() {
     let re = RuleEngine::new(
         &vsmtp_config::Config::default(),
-        &Some(root_example!["actions/dump.vsl"]),
+        &Some(vsl_example!["actions/dump.vsl"]),
     )
     .unwrap();
     let (mut state, _) = get_default_state("./tmp/app");
@@ -156,7 +157,7 @@ fn test_context_dump() {
 fn test_quarantine() {
     let re = RuleEngine::new(
         &vsmtp_config::Config::default(),
-        &Some(root_example!["actions/quarantine.vsl"]),
+        &Some(vsl_example!["actions/quarantine.vsl"]),
     )
     .unwrap();
     let (mut state, _) = get_default_state("./tmp/app");
@@ -208,7 +209,7 @@ fn test_quarantine() {
 fn test_forward() {
     let re = RuleEngine::new(
         &vsmtp_config::Config::default(),
-        &Some(root_example!["actions/forward.vsl"]),
+        &Some(vsl_example!["actions/forward.vsl"]),
     )
     .unwrap();
     let (mut state, _) = get_default_state("./tmp/app");
@@ -269,7 +270,7 @@ fn test_forward() {
 fn test_forward_all() {
     let re = RuleEngine::new(
         &vsmtp_config::Config::default(),
-        &Some(root_example!["actions/forward_all.vsl"]),
+        &Some(vsl_example!["actions/forward_all.vsl"]),
     )
     .unwrap();
     let (mut state, _) = get_default_state("./tmp/app");
@@ -405,7 +406,7 @@ fn test_forward_all() {
 fn test_hostname() {
     let re = RuleEngine::new(
         &vsmtp_config::Config::default(),
-        &Some(root_example!["actions/utils.vsl"]),
+        &Some(vsl_example!["actions/utils.vsl"]),
     )
     .unwrap();
     let (mut state, _) = get_default_state("./tmp/app");
@@ -416,7 +417,7 @@ fn test_hostname() {
 #[test]
 fn test_in_domain_and_server_name() {
     let (mut state, config) = get_default_state("./tmp/app");
-    let re = RuleEngine::new(&config, &Some(root_example!["actions/utils.vsl"])).unwrap();
+    let re = RuleEngine::new(&config, &Some(vsl_example!["actions/utils.vsl"])).unwrap();
 
     assert_eq!(re.run_when(&mut state, &StateSMTP::Connect), Status::Accept);
 }
@@ -430,7 +431,7 @@ fn test_in_domain_and_server_name_sni() {
         ("green.com".to_string(), ConfigServerVirtual::new()),
     ]);
 
-    let re = RuleEngine::new(&config, &Some(root_example!["actions/utils.vsl"])).unwrap();
+    let re = RuleEngine::new(&config, &Some(vsl_example!["actions/utils.vsl"])).unwrap();
     let mut state = RuleState::new(&config, &re);
 
     assert_eq!(re.run_when(&mut state, &StateSMTP::PreQ), Status::Accept);

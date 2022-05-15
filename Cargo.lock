@@ -2003,6 +2003,7 @@ dependencies = [
  "vsmtp-common",
  "vsmtp-config",
  "vsmtp-mail-parser",
+ "vsmtp-test",
  "wait-timeout",
 ]
 

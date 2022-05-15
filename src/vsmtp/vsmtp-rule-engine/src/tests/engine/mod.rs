@@ -80,7 +80,7 @@ fn test_rule_state() {
         .with_default_smtp_codes()
         .without_auth()
         .with_default_app()
-        .with_vsl("./src/tests/empty_main.vsl")
+        .with_default_vsl_settings()
         .with_default_app_logs()
         .with_system_dns()
         .without_virtual_entries()

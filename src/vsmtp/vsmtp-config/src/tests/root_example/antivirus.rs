@@ -19,8 +19,10 @@ use crate::Config;
 #[test]
 fn parse() {
     let _ctx = vsmtp_test::TestContext::new().unwrap();
-
     let toml = include_str!("../../../../../../examples/config/antivirus.toml");
+
+    println!("current dir: {:?}", std::env::current_dir());
+
     pretty_assertions::assert_eq!(
         Config::from_toml(toml).unwrap(),
         Config::builder()

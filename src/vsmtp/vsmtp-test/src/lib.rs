@@ -22,6 +22,40 @@ pub mod get_tls_file;
 #[cfg(test)]
 mod tests;
 
+/// get the example folder at the workspace root.
+#[macro_export]
+macro_rules! root_example {
+    ( $( $x:expr ),* ) => {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("examples")
+            .join(std::path::PathBuf::from_iter([ $( $x, )* ]))
+            .to_path_buf()
+    };
+}
+
+/// get vsl examples at the workspace root.
+#[macro_export]
+macro_rules! vsl_example {
+    ( $( $x:expr ),* ) => {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("examples/vsl")
+            .join(std::path::PathBuf::from_iter([ $( $x, )* ]))
+            .to_path_buf()
+    };
+}
+
 const TESTS_ROOT_WORKSPACE: &str = "./tests_root_workspace";
 
 /// holds metadata to run integration tests.
