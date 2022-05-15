@@ -68,6 +68,78 @@ To meet these challenges, viridIT is developing a new technology of email gatewa
 
 Follow us on [viridit.com](https://viridit.com)
 
+## Filtering
+
+vSMTP enable you to create complex set of rules to filter your emails using the vsl programming language based on [Rhai](https://github.com/rhaiscript/rhai).
+You can:
+- inspect / modify the content of incoming emails.
+- forward and deliver emails locally or remotely.
+- connect to databases.
+- run commands.
+- quarantine emails.
+
+and much more.
+
+```js
+// -- database.vsl
+// here we declare our services.
+// connect to a database with the csv format.
+service greylist db:csv = #{
+  connector: "/db/greylist.csv",
+  access: "O_RDWR",
+  refresh: "always",
+  delimiter: ',',
+};
+```
+
+```js
+// -- main.vsl
+// here we declare our rules for filtering.
+
+import "database" as db;
+
+#{
+  // hook on the 'mail from' stage.
+  mail: [
+    // you can decide to accept or deny an email with a "rule".
+    rule "greylist" || {
+
+      let sender = ctx().mail_from;
+
+      // is the user in our greylist ?
+      if db::greylist.get(sender).len() != 0 {
+        // it is, we accept the email.
+        accept()
+      } else {
+        // it does not, we add the address to the database, then deny the email.
+        db::greylist.set([ sender ]);
+        deny()
+      }
+    }
+  ],
+
+  // hook on delivery, just before emails are sent to all recipients.
+  delivery: [
+    // you can setup delivery, log information, dump an email etc ... with an "action"
+    action "setup delivery" || {
+
+      log("info", `setting up delivery for ${ctx().client_ip}`);
+
+      // forward all recipients with the 'example.com' domain.
+      for rcpt in ctx().rcpt {
+        if rcpt.domain is "example.com" {
+          forward(rcpt, "mta.example.com");
+        } else {
+          deliver(rcpt);
+        }
+      }
+
+    }
+  ]
+}
+```
+
+
 ## Documentation
 
 For documentation please consult the [vBook](https://vsmtp.rs), the online reference and user guide for vSMTP.
