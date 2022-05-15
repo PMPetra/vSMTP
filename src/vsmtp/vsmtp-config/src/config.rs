@@ -420,7 +420,7 @@ pub struct ResolverOptsWrapper {
     pub num_concurrent_reqs: usize,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ConfigAppVSL {
     pub filepath: Option<std::path::PathBuf>,

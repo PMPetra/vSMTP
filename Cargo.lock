@@ -2032,7 +2032,9 @@ name = "vsmtp-test"
 version = "1.0.0"
 dependencies = [
  "async-trait",
+ "fastrand",
  "lettre",
+ "log4rs",
  "pretty_assertions",
  "tokio-rustls",
  "vsmtp-common",

@@ -18,6 +18,7 @@ use crate::{builder::VirtualEntry, Config, ConfigServerDNS, ResolverOptsWrapper}
 
 #[test]
 fn parse() {
+    let _test = vsmtp_test::TestContext::new().unwrap();
     let toml = include_str!("../../../../../../examples/config/tls.toml");
 
     pretty_assertions::assert_eq!(
@@ -31,8 +32,8 @@ fn parse() {
             .with_default_logs_settings()
             .with_default_delivery()
             .with_safe_tls_config(
-                "../../../examples/config/tls/certificate.crt",
-                "../../../examples/config/tls/private_key.key"
+                "examples/config/tls/certificate.crt",
+                "examples/config/tls/private_key.key"
             )
             .unwrap()
             .with_default_smtp_options()
@@ -57,16 +58,16 @@ fn parse() {
                 VirtualEntry {
                     domain: "testserver3.com".to_string(),
                     tls: Some((
-                        "../../../examples/config/tls/certificate.crt".to_string(),
-                        "../../../examples/config/tls/private_key.key".to_string()
+                        "examples/config/tls/certificate.crt".to_string(),
+                        "examples/config/tls/private_key.key".to_string()
                     )),
                     dns: None,
                 },
                 VirtualEntry {
                     domain: "testserver4.com".to_string(),
                     tls: Some((
-                        "../../../examples/config/tls/certificate.crt".to_string(),
-                        "../../../examples/config/tls/private_key.key".to_string()
+                        "examples/config/tls/certificate.crt".to_string(),
+                        "examples/config/tls/private_key.key".to_string()
                     )),
                     dns: Some(ConfigServerDNS::Google {
                         options: ResolverOptsWrapper::default()

@@ -25,11 +25,15 @@ async-trait = "0.1.53"
 
 pretty_assertions = "1.2.1"
 
+fastrand = "1.7.0"
+
 lettre = { version = "0.10.0-rc.6", default-features = false, features = [
     "smtp-transport",
     "builder",
     "tokio1-rustls-tls",
     "tracing",
 ] }
-
+log4rs = { version = "1.1.1", default-features = false, features = [
+    "console_appender",
+] }
 tokio-rustls = "0.23.4"

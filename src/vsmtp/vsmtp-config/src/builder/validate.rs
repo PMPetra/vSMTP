@@ -147,7 +147,21 @@ impl Config {
             config.server.system.thread_pool.processing != 0
                 && config.server.system.thread_pool.receiver != 0
                 && config.server.system.thread_pool.delivery != 0,
-            "Worker threads cannot be set to 0"
+            "Worker threads cannot be set to 0."
+        );
+
+        if let Some(filepath) = config.app.vsl.filepath.as_ref() {
+            anyhow::ensure!(
+                filepath.exists(),
+                "rules entrypoint at {} does not exists.",
+                filepath.display()
+            );
+        }
+
+        anyhow::ensure!(
+            config.app.dirpath.exists(),
+            "application directory at {} does not exists.",
+            config.app.dirpath.display()
         );
 
         {
