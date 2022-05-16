@@ -2,7 +2,7 @@
 edition = "2021"
 
 name = "vsmtp-delivery"
-version = "1.0.0"
+version = "1.0.0-rc.1"
 license = "GPL-3.0-only"
 
 rust-version = "1.58"
@@ -15,8 +15,8 @@ repository = "https://github.com/viridIT/vSMTP"
 publish = false
 
 [dependencies]
-vsmtp-common = { path = "../vsmtp-common" }
-vsmtp-config = { path = "../vsmtp-config" }
+vsmtp-common = { path = "../vsmtp-common", version = "1.0.0-rc.1" }
+vsmtp-config = { path = "../vsmtp-config", version = "1.0.0-rc.1" }
 
 async-trait = "0.1.53"
 

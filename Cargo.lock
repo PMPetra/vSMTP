@@ -1908,7 +1908,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "vqueue"
-version = "1.0.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "clap 3.1.18",
  "itertools",
@@ -1919,7 +1919,7 @@ dependencies = [
 
 [[package]]
 name = "vsmtp"
-version = "1.0.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "clap 3.1.18",
  "diff",
@@ -1930,7 +1930,7 @@ dependencies = [
 
 [[package]]
 name = "vsmtp-common"
-version = "1.0.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "addr",
  "anyhow",
@@ -1947,7 +1947,7 @@ dependencies = [
 
 [[package]]
 name = "vsmtp-config"
-version = "1.0.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "hostname",
  "humantime-serde",
@@ -1967,7 +1967,7 @@ dependencies = [
 
 [[package]]
 name = "vsmtp-delivery"
-version = "1.0.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
  "lettre",
@@ -1981,7 +1981,7 @@ dependencies = [
 
 [[package]]
 name = "vsmtp-mail-parser"
-version = "1.0.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "pretty_assertions",
  "vsmtp-common",
@@ -1989,7 +1989,7 @@ dependencies = [
 
 [[package]]
 name = "vsmtp-rule-engine"
-version = "1.0.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "csv",
  "hostname",
@@ -2008,7 +2008,7 @@ dependencies = [
 
 [[package]]
 name = "vsmtp-server"
-version = "1.0.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
  "criterion",
@@ -2029,7 +2029,7 @@ dependencies = [
 
 [[package]]
 name = "vsmtp-test"
-version = "1.0.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
  "lettre",
@@ -2254,8 +2254,3 @@ checksum = "0120db82e8a1e0b9fb3345a539c478767c0048d842860994d96113d5b667bd69"
 dependencies = [
  "winapi",
 ]
-
-[[patch.unused]]
-name = "vsmtp-common"
-version = "1.0.0"
-source = "git+https://github.com/viridIT/vSMTP.git#3cf79b20a3980cafec3cbf56cccd6b9db8ee3d84"

@@ -2,7 +2,7 @@
 edition = "2021"
 
 name = "vsmtp-common"
-version = "1.0.0"
+version = "1.0.0-rc.1"
 license = "GPL-3.0-only"
 
 rust-version = "1.58"
@@ -12,8 +12,8 @@ description = "Next-gen MTA. Secured, Faster and Greener"
 homepage = "https://github.com/viridIT/vSMTP"
 repository = "https://github.com/viridIT/vSMTP"
 readme = "../../../README.md"
-keywords = []
-categories = []
+keywords = ["vsmtp"]
+categories = ["data-structures"]
 
 [dependencies]
 # Re-exported
