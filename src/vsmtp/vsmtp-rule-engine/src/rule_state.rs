@@ -1,3 +1,4 @@
+use crate::dsl::object::Object;
 use crate::rule_engine::RuleEngine;
 
 use super::server_api::ServerAPI;
@@ -107,6 +108,8 @@ impl RuleState {
                 "SRV" => Ok(Some(rhai::Dynamic::from(server.clone()))),
                 _ => Ok(None),
             })
+            .on_def_var(|_, info, _| Ok(!matches!(info.name, "CTX" | "SRV")))
+            .on_print(|msg| println!("{msg}"))
             .register_global_module(rule_engine.std_module.clone())
             .register_static_module("sys", rule_engine.vsl_module.clone())
             .register_static_module("toml", rule_engine.toml_module.clone())
@@ -127,7 +130,9 @@ impl RuleState {
                 crate::dsl::object::parsing::parse_object,
                 true,
                 crate::dsl::object::parsing::create_object,
-            );
+            )
+            .register_iterator::<Vec<vsmtp_common::Address>>()
+            .register_iterator::<Vec<std::sync::Arc<Object>>>();
 
         engine
     }
