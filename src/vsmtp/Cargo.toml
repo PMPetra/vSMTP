@@ -18,6 +18,11 @@ default-run = "vsmtp"
 [lib]
 bench = false
 
+[[bin]]
+name = "vsmtp"
+path = "src/main.rs"
+bench = false
+
 [dependencies]
 vsmtp-common = { path = "./vsmtp-common" }
 vsmtp-server = { path = "./vsmtp-server" }
