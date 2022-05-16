@@ -14,6 +14,11 @@ repository = "https://github.com/viridIT/vSMTP"
 
 publish = false
 
+[[bin]]
+name = "vqueue"
+path = "src/main.rs"
+bench = false
+
 [dependencies]
 vsmtp-common = { path = "../vsmtp/vsmtp-common" }
 vsmtp-config = { path = "../vsmtp/vsmtp-config" }
