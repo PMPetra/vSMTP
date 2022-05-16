@@ -11,6 +11,9 @@ authors = ["Team viridIT <https://viridit.com/>"]
 description = "vSMTP's queues mananger. Secured, Faster and Greener"
 homepage = "https://github.com/viridIT/vSMTP"
 repository = "https://github.com/viridIT/vSMTP"
+readme = "../../README.md"
+keywords = []
+categories = []
 
 publish = false
 
