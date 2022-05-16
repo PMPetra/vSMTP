@@ -1947,7 +1947,7 @@ dependencies = [
 
 [[package]]
 name = "vsmtp-config"
-version = "1.0.0-rc.1"
+version = "1.0.0"
 dependencies = [
  "hostname",
  "humantime-serde",
