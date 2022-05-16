@@ -15,8 +15,6 @@ readme = "../../README.md"
 keywords = ["vsmtp"]
 categories = ["command-line-utilities"]
 
-publish = false
-
 [dependencies]
 vsmtp-common = { path = "../vsmtp/vsmtp-common", version = "1.0.0-rc.1" }
 vsmtp-config = { path = "../vsmtp/vsmtp-config", version = "1.0.0-rc.1" }
