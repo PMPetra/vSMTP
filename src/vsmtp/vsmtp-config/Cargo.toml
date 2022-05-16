@@ -12,8 +12,6 @@ description = "Next-gen MTA. Secured, Faster and Greener"
 homepage = "https://github.com/viridIT/vSMTP"
 repository = "https://github.com/viridIT/vSMTP"
 
-publish = false
-
 [dependencies]
 vsmtp-common = { path = "../vsmtp-common", version = "1.0.0-rc.1" }
 
