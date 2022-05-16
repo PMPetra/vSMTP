@@ -2,8 +2,8 @@
 edition = "2021"
 
 name = "vsmtp"
-version = "1.0.0-rc.1"
-license = "GPL-3.0"
+version = "1.0.1"
+license = "GPL-3.0-only"
 
 authors = ["Team viridIT <https://viridit.com/>"]
 description = "Next-gen MTA. Secured, Faster and Greener"
@@ -38,7 +38,7 @@ path = "./src/vsmtp/src/main.rs"
 path = "./src/vsmtp/src/lib.rs"
 
 [dependencies]
-vsmtp-common = { path = "./src/vsmtp/vsmtp-common", version = "1.0.0-rc.1" }
+vsmtp-common = { path = "./src/vsmtp/vsmtp-common", version = "1.0.1" }
 vsmtp-server = { path = "./src/vsmtp/vsmtp-server", version = "1.0.0-rc.1" }
 vsmtp-config = { path = "./src/vsmtp/vsmtp-config", version = "1.0.0-rc.1" }
 

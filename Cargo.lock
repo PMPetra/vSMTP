@@ -590,7 +590,7 @@ checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 [[package]]
 name = "gsasl-sys"
 version = "0.2.4"
-source = "git+https://github.com/viridIT/rsasl.git?branch=fix/async#9da27213ed1560fe3927bc19f892ae80fc1c10c3"
+source = "git+https://github.com/viridIT/rsasl.git?branch=fix/async#bb88e88896f1e804f446d074b102ae1075480775"
 dependencies = [
  "bindgen",
 ]
@@ -1356,16 +1356,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rsasl"
-version = "1.4.2"
-source = "git+https://github.com/viridIT/rsasl.git?branch=fix/async#9da27213ed1560fe3927bc19f892ae80fc1c10c3"
-dependencies = [
- "discard",
- "gsasl-sys",
- "libc",
-]
-
-[[package]]
 name = "rustc-hash"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1919,7 +1909,7 @@ dependencies = [
 
 [[package]]
 name = "vsmtp"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "clap 3.1.18",
  "diff",
@@ -1930,19 +1920,19 @@ dependencies = [
 
 [[package]]
 name = "vsmtp-common"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "addr",
  "anyhow",
  "base64",
  "libc",
  "log",
- "rsasl",
  "serde",
  "serde_derive",
  "serde_json",
  "strum",
  "users",
+ "vsmtp-rsasl",
 ]
 
 [[package]]
@@ -1988,6 +1978,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "vsmtp-rsasl"
+version = "1.5.0"
+source = "git+https://github.com/viridIT/rsasl.git?branch=fix/async#bb88e88896f1e804f446d074b102ae1075480775"
+dependencies = [
+ "discard",
+ "gsasl-sys",
+ "libc",
+]
+
+[[package]]
 name = "vsmtp-rule-engine"
 version = "1.0.0"
 dependencies = [
@@ -2008,7 +2008,7 @@ dependencies = [
 
 [[package]]
 name = "vsmtp-server"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "async-trait",
  "criterion",
@@ -2029,7 +2029,7 @@ dependencies = [
 
 [[package]]
 name = "vsmtp-test"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "async-trait",
  "lettre",
