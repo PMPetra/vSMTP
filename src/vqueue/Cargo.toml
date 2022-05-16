@@ -14,9 +14,7 @@ repository = "https://github.com/viridIT/vSMTP"
 
 publish = false
 
-[[bin]]
-name = "vqueue"
-path = "src/main.rs"
+[lib]
 bench = false
 
 [dependencies]
