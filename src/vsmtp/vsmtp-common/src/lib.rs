@@ -42,11 +42,12 @@ pub const SUBMISSIONS_PORT: u16 = 465;
 mod r#type {
     #[macro_use]
     pub mod address;
+    pub mod codes_id;
     pub mod reply;
     pub mod reply_code;
 }
 
-pub use r#type::{address::Address, reply::Reply, reply_code::*};
+pub use r#type::{address::Address, codes_id::CodesID, reply::Reply, reply_code::*};
 
 /// envelop of a transaction
 pub mod envelop;

@@ -18,36 +18,127 @@
 use crate::ReplyCode;
 
 /// SMTP message send by the server to the client as defined in RFC5321#4.2
-#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Reply {
-    ///
-    pub code: ReplyCode,
-    ///
-    pub text_string: String,
+    #[serde(flatten)]
+    code: ReplyCode,
+    text: String,
+}
+
+impl<'de> serde::Deserialize<'de> for Reply {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ReplyVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for ReplyVisitor {
+            type Value = Reply;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("[...]")
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Reply::parse_str(v).map_err(serde::de::Error::custom)
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                #[derive(serde::Deserialize)]
+                #[serde(field_identifier, rename_all = "lowercase")]
+                enum Field {
+                    Code,
+                    Enhanced,
+                    Text,
+                }
+
+                let mut text: Option<String> = None;
+                let mut code = None;
+                let mut enhanced = None;
+
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::Code => {
+                            if code.is_some() {
+                                return Err(serde::de::Error::duplicate_field("code"));
+                            }
+                            code = Some(map.next_value()?);
+                        }
+                        Field::Text => {
+                            if text.is_some() {
+                                return Err(serde::de::Error::duplicate_field("text"));
+                            }
+                            text = Some(map.next_value()?);
+                        }
+                        Field::Enhanced => {
+                            if enhanced.is_some() {
+                                return Err(serde::de::Error::duplicate_field("enhanced"));
+                            }
+                            enhanced = Some(map.next_value()?);
+                        }
+                    }
+                }
+                let code = code.ok_or_else(|| serde::de::Error::missing_field("code"))?;
+                Ok(Reply::new(
+                    match enhanced {
+                        Some(enhanced) => ReplyCode::Enhanced { code, enhanced },
+                        None => ReplyCode::Code { code },
+                    },
+                    text.ok_or_else(|| serde::de::Error::missing_field("text"))?,
+                ))
+            }
+        }
+
+        deserializer.deserialize_any(ReplyVisitor)
+    }
 }
 
 impl Reply {
     ///
+    pub fn new(code: ReplyCode, text: impl Into<String>) -> Self {
+        let text = text.into();
+        if text.contains("\r\n") {
+            log::info!("found a '\r\n' in your smtp codes, this is not required as they will be inserted automatically");
+        }
+
+        Self { code, text }
+    }
+
+    ///
+    #[must_use]
+    pub const fn code(&self) -> &ReplyCode {
+        &self.code
+    }
+
+    ///
+    #[must_use]
+    pub const fn text(&self) -> &String {
+        &self.text
+    }
+
+    ///
+    pub fn set(&mut self, text: impl Into<String>) {
+        self.text = text.into();
+    }
+
+    ///
     #[must_use]
     pub fn fold(&self) -> String {
-        // let size_to_remove = "xyz ".len() + enhanced.map_or(0, |_| "X.Y.Z ".len()) + "\r\n".len();
-        // let size_to_remove = 2 + &match self.code {
-        //     ReplyCode::Code(_) => 0,
-        //     ReplyCode::Enhanced(_, enhanced) => enhanced.len(),
-        // }; // ("xyz" + " " + [ enhanced + " " ] + "\r\n").len()
-
-        let mut prefix = vec![];
-        prefix.extend_from_slice(
-            &match &self.code {
-                ReplyCode::Code(code) => format!("{code} "),
-                ReplyCode::Enhanced(code, enhanced) => format!("{code} {enhanced} "),
-            }
-            .chars()
-            .collect::<Vec<_>>(),
-        );
+        let prefix = match &self.code {
+            ReplyCode::Code { code } => format!("{code} "),
+            ReplyCode::Enhanced { code, enhanced } => format!("{code} {enhanced} "),
+        }
+        .chars()
+        .collect::<Vec<_>>();
 
         let output = self
-            .text_string
+            .text
             .split("\r\n")
             .filter(|s| !s.is_empty())
             .flat_map(|line| {
@@ -80,37 +171,46 @@ impl Reply {
             })
             .collect::<String>()
     }
+
+    fn parse_str(line: &str) -> anyhow::Result<Self> {
+        let (code, text) = ReplyCode::parse(line)?;
+        Ok(Self::new(code, text.to_string()))
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Reply, ReplyCode};
+    mod fold {
+        use crate::{Reply, ReplyCode};
 
-    #[test]
-    fn no_fold() {
-        let output = Reply {
-            code: ReplyCode::Code(220),
-            text_string: "this is a custom code.".to_string(),
+        #[test]
+        fn no_fold() {
+            let output = Reply {
+                code: ReplyCode::Code { code: 220 },
+                text: "this is a custom code.".to_string(),
+            }
+            .fold();
+            pretty_assertions::assert_eq!(output, "220 this is a custom code.\r\n".to_string());
+            for i in output.split("\r\n") {
+                assert!(i.len() <= 78);
+            }
         }
-        .fold();
-        pretty_assertions::assert_eq!(output, "220 this is a custom code.\r\n".to_string());
-        for i in output.split("\r\n") {
-            assert!(i.len() <= 78);
-        }
-    }
 
-    #[test]
-    fn one_line() {
-        let output = Reply {
-            code: ReplyCode::Enhanced(220, "2.0.0".to_string()),
-            text_string: [
-                "this is a long message, a very very long message ...",
-                " carriage return will be properly added automatically.",
-            ]
-            .concat(),
-        }
-        .fold();
-        pretty_assertions::assert_eq!(
+        #[test]
+        fn one_line() {
+            let output = Reply {
+                code: ReplyCode::Enhanced {
+                    code: 220,
+                    enhanced: "2.0.0".to_string(),
+                },
+                text: [
+                    "this is a long message, a very very long message ...",
+                    " carriage return will be properly added automatically.",
+                ]
+                .concat(),
+            }
+            .fold();
+            pretty_assertions::assert_eq!(
             output,
             [
                 "220-2.0.0 this is a long message, a very very long message ... carriage return\r\n",
@@ -118,24 +218,27 @@ mod tests {
             ]
             .concat()
         );
-        for i in output.split("\r\n") {
-            assert!(i.len() <= 78);
+            for i in output.split("\r\n") {
+                assert!(i.len() <= 78);
+            }
         }
-    }
 
-    #[test]
-    fn two_line() {
-        let output = Reply {
-            code: ReplyCode::Enhanced(220, "2.0.0".to_string()),
-            text_string: [
-                "this is a long message, a very very long message ...",
-                " carriage return will be properly added automatically. Made by",
-                " vSMTP mail transfer agent\nCopyright (C) 2022 viridIT SAS",
-            ]
-            .concat(),
-        }
-        .fold();
-        pretty_assertions::assert_eq!(
+        #[test]
+        fn two_line() {
+            let output = Reply {
+                code: ReplyCode::Enhanced {
+                    code: 220,
+                    enhanced: "2.0.0".to_string(),
+                },
+                text: [
+                    "this is a long message, a very very long message ...",
+                    " carriage return will be properly added automatically. Made by",
+                    " vSMTP mail transfer agent\nCopyright (C) 2022 viridIT SAS",
+                ]
+                .concat(),
+            }
+            .fold();
+            pretty_assertions::assert_eq!(
             output,
             [
                 "220-2.0.0 this is a long message, a very very long message ... carriage return\r\n",
@@ -144,36 +247,77 @@ mod tests {
             ]
             .concat()
         );
-        for i in output.split("\r\n") {
-            assert!(i.len() <= 78);
+            for i in output.split("\r\n") {
+                assert!(i.len() <= 78);
+            }
+        }
+
+        #[test]
+        fn ehlo_response() {
+            let output = Reply {
+                code: ReplyCode::Code { code: 250 },
+                text: [
+                    "testserver.com\r\n",
+                    "AUTH PLAIN LOGIN CRAM-MD5\r\n",
+                    "8BITMIME\r\n",
+                    "SMTPUTF8\r\n",
+                ]
+                .concat(),
+            }
+            .fold();
+            pretty_assertions::assert_eq!(
+                output,
+                [
+                    "250-testserver.com\r\n",
+                    "250-AUTH PLAIN LOGIN CRAM-MD5\r\n",
+                    "250-8BITMIME\r\n",
+                    "250 SMTPUTF8\r\n",
+                ]
+                .concat()
+            );
+            for i in output.split("\r\n") {
+                assert!(i.len() <= 78);
+            }
         }
     }
 
-    #[test]
-    fn ehlo_response() {
-        let output = Reply {
-            code: ReplyCode::Code(250),
-            text_string: [
-                "testserver.com\r\n",
-                "AUTH PLAIN LOGIN CRAM-MD5\r\n",
-                "8BITMIME\r\n",
-                "SMTPUTF8\r\n",
-            ]
-            .concat(),
+    mod parse {
+        use crate::{Reply, ReplyCode};
+
+        #[test]
+        fn basic() {
+            assert_eq!(
+                Reply::parse_str("250 Ok").unwrap(),
+                Reply {
+                    code: ReplyCode::Code { code: 250 },
+                    text: "Ok".to_string()
+                }
+            );
         }
-        .fold();
-        pretty_assertions::assert_eq!(
-            output,
-            [
-                "250-testserver.com\r\n",
-                "250-AUTH PLAIN LOGIN CRAM-MD5\r\n",
-                "250-8BITMIME\r\n",
-                "250 SMTPUTF8\r\n",
-            ]
-            .concat()
-        );
-        for i in output.split("\r\n") {
-            assert!(i.len() <= 78);
+
+        #[test]
+        fn no_word() {
+            assert_eq!(
+                Reply::parse_str("250 ").unwrap(),
+                Reply {
+                    code: ReplyCode::Code { code: 250 },
+                    text: "".to_string()
+                }
+            );
+        }
+
+        #[test]
+        fn basic_enhanced() {
+            assert_eq!(
+                Reply::parse_str("501 5.1.7 Invalid address").unwrap(),
+                Reply {
+                    code: ReplyCode::Enhanced {
+                        code: 501,
+                        enhanced: "5.1.7".to_string()
+                    },
+                    text: "Invalid address".to_string()
+                }
+            );
         }
     }
 }

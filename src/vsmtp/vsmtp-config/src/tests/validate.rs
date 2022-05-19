@@ -28,7 +28,7 @@ fn get_mechanism_from_config(config: &Config, tls: bool) -> Vec<Mechanism> {
             &CodesID::EhloPain
         })
         .unwrap()
-        .text_string;
+        .text();
 
     let auth = plain_esmtp
         .split("\r\n")

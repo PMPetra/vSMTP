@@ -227,8 +227,8 @@ where
                     )
                     .await;
                 }
-                conn.send_code(CodesID::TLSNotAvailable).await?;
-                anyhow::bail!("{:?}", CodesID::TLSNotAvailable)
+                conn.send_code(CodesID::TlsNotAvailable).await?;
+                anyhow::bail!("{:?}", CodesID::TlsNotAvailable)
             }
             TransactionResult::Authentication(helo_pre_auth, mechanism, initial_response) => {
                 if let Some(rsasl) = &rsasl {

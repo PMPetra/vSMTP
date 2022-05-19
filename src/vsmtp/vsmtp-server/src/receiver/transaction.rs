@@ -187,7 +187,7 @@ impl Transaction {
                         .map(|smtps| smtps.security_level)
                         == Some(TlsSecurityLevel::Encrypt) =>
             {
-                ProcessedEvent::Reply(CodesID::TLSRequired)
+                ProcessedEvent::Reply(CodesID::TlsRequired)
             }
 
             (StateSMTP::Helo, Event::MailCmd(..))

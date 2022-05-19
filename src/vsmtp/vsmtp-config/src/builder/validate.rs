@@ -26,6 +26,7 @@ use crate::{
 use vsmtp_common::{
     auth::Mechanism,
     re::{anyhow, strum},
+    CodesID, Reply, ReplyCode,
 };
 
 impl Builder<WantsValidate> {
@@ -149,41 +150,21 @@ impl Config {
             "Worker threads cannot be set to 0"
         );
 
-        /*
         {
-            let default_values = ConfigServerSMTP::default_smtp_codes();
-            let reply_codes = &mut config.server.smtp.codes;
+            let auth_mechanism_list: Option<(Vec<Mechanism>, Vec<Mechanism>)> = config
+                .server
+                .smtp
+                .auth
+                .as_ref()
+                .map(|auth| auth.mechanisms.iter().partition(|m| m.must_be_under_tls()));
 
-            for i in <SMTPReplyCode as strum::IntoEnumIterator>::iter().filter(|i| {
-                ![
-                    SMTPReplyCode::Code250PlainEsmtp,
-                    SMTPReplyCode::Code250SecuredEsmtp,
-                ]
-                .contains(i)
-            }) {
-                let value = reply_codes
-                    .get(&i)
-                    .or_else(|| default_values.get(&i))
-                    .unwrap()
-                    .replace("{domain}", &config.server.domain);
-
-                reply_codes.insert(i, value);
-            }
-        }
-        */
-
-        let auth_mechanism_list: Option<(Vec<Mechanism>, Vec<Mechanism>)> = config
-            .server
-            .smtp
-            .auth
-            .as_ref()
-            .map(|auth| auth.mechanisms.iter().partition(|m| m.must_be_under_tls()));
-
-        /*
-                config.server.smtp.codes.insert(
-                    SMTPReplyCode::Code250PlainEsmtp,
+            config.server.smtp.codes.insert(
+                CodesID::EhloPain,
+                Reply::new(
+                    ReplyCode::Code { code: 250 },
                     [
-                        &format!("250-{}\r\n", config.server.domain),
+                        &config.server.domain,
+                        "\r\n",
                         &auth_mechanism_list
                             .as_ref()
                             .map(|(plain, secured)| {
@@ -205,12 +186,16 @@ impl Config {
                         "SMTPUTF8\r\n",
                     ]
                     .concat(),
-                );
+                ),
+            );
 
-                config.server.smtp.codes.insert(
-                    SMTPReplyCode::Code250SecuredEsmtp,
+            config.server.smtp.codes.insert(
+                CodesID::EhloSecured,
+                Reply::new(
+                    ReplyCode::Code { code: 250 },
                     [
-                        &format!("250-{}\r\n", config.server.domain),
+                        &config.server.domain,
+                        "\r\n",
                         &auth_mechanism_list
                             .as_ref()
                             .map(|(must_be_secured, _)| mech_list_to_code(must_be_secured))
@@ -219,8 +204,22 @@ impl Config {
                         "SMTPUTF8\r\n",
                     ]
                     .concat(),
-                );
-        */
+                ),
+            );
+        }
+
+        let default_values = ConfigServerSMTP::default_smtp_codes();
+        let reply_codes = &mut config.server.smtp.codes;
+
+        for key in <CodesID as strum::IntoEnumIterator>::iter() {
+            reply_codes
+                .entry(key)
+                .or_insert_with_key(|key| default_values.get(key).unwrap().clone());
+
+            reply_codes.entry(key).and_modify(|reply| {
+                reply.set(reply.text().replace("{domain}", &config.server.domain));
+            });
+        }
 
         Ok(config)
     }

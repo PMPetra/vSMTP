@@ -124,6 +124,17 @@ impl<S> Connection<S>
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Send + Unpin,
 {
+    ///
+    /// # Errors
+    ///
+    /// # Panics
+    ///
+    /// * config miss `code_id` (ill-formed)
+    pub async fn send_code(&mut self, code_id: CodesID) -> anyhow::Result<()> {
+        self.send_reply(self.config.server.smtp.codes.get(&code_id).unwrap().clone())
+            .await
+    }
+
     /// send a reply code to the client
     ///
     /// # Errors
@@ -131,37 +142,29 @@ where
     /// # Panics
     ///
     /// * a smtp code is missing, and thus config is ill-formed
-    pub async fn send_code(&mut self, code_id: CodesID) -> anyhow::Result<()> {
-        fn get_message(config: &Config, code: CodesID) -> Reply {
-            // match code {
-            //     // SMTPReplyCode::Custom(message) => message,
-            //     _ =>
-            // }
-            config.server.smtp.codes.get(&code).unwrap().clone()
-        }
-        //
-        // fn make_fold(message: &str) -> String {
-        //     fold(&message[0..3], None, &message[4..])
-        // }
-
+    pub async fn send_reply(&mut self, reply: Reply) -> anyhow::Result<()> {
         log::info!(
             target: log_channels::CONNECTION,
-            "sending code=\"{code_id:?}\"",
+            "sending reply=\"{reply:?}\"",
         );
 
-        let reply_to_send = get_message(&self.config, code_id);
-        if reply_to_send.code.is_error() {
+        if reply.code().is_error() {
             self.error_count += 1;
 
             let hard_error = self.config.server.smtp.error.hard_count;
             let soft_error = self.config.server.smtp.error.soft_count;
 
             if hard_error != -1 && self.error_count >= hard_error {
-                let too_many_error_msg =
-                    // get_message(&self.config, SMTPReplyCode::Code451TooManyError);
-                    self.config.server.smtp.codes.get(&CodesID::TooManyError).unwrap().fold();
+                let too_many_error_msg = self
+                    .config
+                    .server
+                    .smtp
+                    .codes
+                    .get(&CodesID::TooManyError)
+                    .unwrap()
+                    .fold();
 
-                let mut response = reply_to_send.fold();
+                let mut response = reply.fold();
                 response.push_str("\r\n");
                 response.replace_range(0..4, &format!("{}-", &too_many_error_msg[0..3]));
                 response.push_str(&too_many_error_msg);
@@ -172,13 +175,13 @@ where
                 anyhow::bail!("{:?}", CodesID::TooManyError)
             }
 
-            self.send(&reply_to_send.fold()).await?;
+            self.send(&reply.fold()).await?;
 
             if soft_error != -1 && self.error_count >= soft_error {
-                std::thread::sleep(self.config.server.smtp.error.delay);
+                tokio::time::sleep(self.config.server.smtp.error.delay).await;
             }
         } else {
-            self.send(&reply_to_send.fold()).await?;
+            self.send(&reply.fold()).await?;
         }
         Ok(())
     }

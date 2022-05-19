@@ -19,6 +19,7 @@
 #![allow(clippy::use_self)]
 
 use crate::parser::{tls_certificate, tls_private_key};
+use serde_with::serde_as;
 use vsmtp_common::{
     auth::Mechanism,
     re::{anyhow, log},
@@ -343,6 +344,7 @@ pub struct ConfigServerSMTPAuth {
     pub attempt_count_max: i64,
 }
 
+#[serde_as]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ConfigServerSMTP {
@@ -358,6 +360,7 @@ pub struct ConfigServerSMTP {
     #[serde(default)]
     pub timeout_client: ConfigServerSMTPTimeoutClient,
     #[serde(default)]
+    #[serde_as(as = "std::collections::BTreeMap<serde_with::DisplayFromStr, _>")]
     pub codes: std::collections::BTreeMap<CodesID, Reply>,
     // NOTE: extension settings here
     pub auth: Option<ConfigServerSMTPAuth>,
