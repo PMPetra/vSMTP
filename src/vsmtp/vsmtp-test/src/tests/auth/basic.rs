@@ -22,6 +22,7 @@ use vsmtp_common::{
     addr,
     mail_context::MailContext,
     re::{anyhow, base64, vsmtp_rsasl},
+    CodesID,
 };
 use vsmtp_server::re::tokio;
 use vsmtp_server::Connection;
@@ -69,9 +70,8 @@ async fn plain_in_clair_unsecured() {
             assert_eq!(mail.envelop.helo, "client.com");
             assert_eq!(mail.envelop.mail_from.full(), "foo@bar");
             assert_eq!(mail.envelop.rcpt, vec![addr!("joe@doe").into()]);
+            conn.send_code(CodesID::Ok).await?;
 
-            conn.send_code(vsmtp_common::code::SMTPReplyCode::Code250)
-                .await?;
             Ok(())
         }
     }
@@ -128,9 +128,8 @@ async fn plain_in_clair_unsecured_utf8() {
             assert_eq!(mail.envelop.helo, "client.com");
             assert_eq!(mail.envelop.mail_from.full(), "foo@bar");
             assert_eq!(mail.envelop.rcpt, vec![addr!("joe@doe").into()]);
+            conn.send_code(CodesID::Ok).await?;
 
-            conn.send_code(vsmtp_common::code::SMTPReplyCode::Code250)
-                .await?;
             Ok(())
         }
     }
@@ -294,9 +293,8 @@ async fn plain_in_clair_unsecured_without_initial_response() {
             assert_eq!(mail.envelop.helo, "client.com");
             assert_eq!(mail.envelop.mail_from.full(), "foo@bar");
             assert_eq!(mail.envelop.rcpt, vec![addr!("joe@doe").into()]);
+            conn.send_code(CodesID::Ok).await?;
 
-            conn.send_code(vsmtp_common::code::SMTPReplyCode::Code250)
-                .await?;
             Ok(())
         }
     }

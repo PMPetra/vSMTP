@@ -18,11 +18,11 @@ use self::transaction::{Transaction, TransactionResult};
 use crate::{auth, receiver::auth_exchange::on_authentication, ProcessMessage};
 use vsmtp_common::{
     auth::Mechanism,
-    code::SMTPReplyCode,
     mail_context::MailContext,
     queue::Queue,
     re::{anyhow, log},
     status::Status,
+    CodesID,
 };
 use vsmtp_config::{create_app_folder, re::rustls};
 use vsmtp_rule_engine::rule_engine::RuleEngine;
@@ -85,7 +85,7 @@ impl OnMail for MailHandler {
                 }?;
 
                 log::warn!("postq & delivery skipped due to quarantine.");
-                conn.send_code(SMTPReplyCode::Code250).await?;
+                conn.send_code(CodesID::Ok).await?;
                 return Ok(());
             }
             Some(reason) => {
@@ -99,7 +99,7 @@ impl OnMail for MailHandler {
             next_queue.write_to_queue(&conn.config.server.queues.dirpath, &mail)
         {
             log::error!("couldn't write to '{}' queue: {}", next_queue, error);
-            SMTPReplyCode::Code554
+            CodesID::Denied
         } else {
             match next_queue {
                 Queue::Working => &self.working_sender,
@@ -111,7 +111,7 @@ impl OnMail for MailHandler {
             })
             .await?;
 
-            SMTPReplyCode::Code250
+            CodesID::Ok
         };
 
         conn.send_code(response).await?;
@@ -133,8 +133,7 @@ where
 {
     match on_authentication(conn, rsasl, rule_engine, mechanism, initial_response).await {
         Err(auth_exchange::AuthExchangeError::Failed) => {
-            conn.send_code(SMTPReplyCode::AuthInvalidCredentials)
-                .await?;
+            conn.send_code(CodesID::AuthInvalidCredentials).await?;
             anyhow::bail!("Auth: Credentials invalid, closing connection");
         }
         Err(auth_exchange::AuthExchangeError::Canceled) => {
@@ -150,17 +149,17 @@ where
                 .unwrap()
                 .attempt_count_max;
             if retries_max != -1 && conn.authentication_attempt > retries_max {
-                conn.send_code(SMTPReplyCode::AuthRequired).await?;
+                conn.send_code(CodesID::AuthRequired).await?;
                 anyhow::bail!("Auth: Attempt max {} reached", retries_max);
             }
-            conn.send_code(SMTPReplyCode::AuthClientCanceled).await?;
+            conn.send_code(CodesID::AuthClientCanceled).await?;
         }
         Err(auth_exchange::AuthExchangeError::Timeout(e)) => {
-            conn.send_code(SMTPReplyCode::Code451Timeout).await?;
+            conn.send_code(CodesID::Timeout).await?;
             anyhow::bail!(std::io::Error::new(std::io::ErrorKind::TimedOut, e));
         }
         Err(auth_exchange::AuthExchangeError::InvalidBase64) => {
-            conn.send_code(SMTPReplyCode::AuthErrorDecode64).await?;
+            conn.send_code(CodesID::AuthErrorDecode64).await?;
         }
         Err(auth_exchange::AuthExchangeError::Other(e)) => anyhow::bail!("{}", e),
         Ok(_) => {
@@ -209,7 +208,7 @@ where
 
     let mut helo_domain = None;
 
-    conn.send_code(SMTPReplyCode::Greetings).await?;
+    conn.send_code(CodesID::Greetings).await?;
 
     while conn.is_alive {
         match Transaction::receive(conn, &helo_domain, rule_engine.clone()).await? {
@@ -228,8 +227,8 @@ where
                     )
                     .await;
                 }
-                conn.send_code(SMTPReplyCode::Code454).await?;
-                anyhow::bail!("{}", SMTPReplyCode::Code454)
+                conn.send_code(CodesID::TLSNotAvailable).await?;
+                anyhow::bail!("{:?}", CodesID::TLSNotAvailable)
             }
             TransactionResult::Authentication(helo_pre_auth, mechanism, initial_response) => {
                 if let Some(rsasl) = &rsasl {
@@ -244,7 +243,7 @@ where
                     )
                     .await?;
                 } else {
-                    conn.send_code(SMTPReplyCode::Code502unimplemented).await?;
+                    conn.send_code(CodesID::Unimplemented).await?;
                 }
             }
         }
@@ -294,7 +293,7 @@ where
     );
 
     if let ConnectionKind::Tunneled = secured_conn.kind {
-        secured_conn.send_code(SMTPReplyCode::Greetings).await?;
+        secured_conn.send_code(CodesID::Greetings).await?;
     }
 
     let mut helo_domain = None;
@@ -308,9 +307,7 @@ where
                     .await?;
             }
             TransactionResult::TlsUpgrade => {
-                secured_conn
-                    .send_code(SMTPReplyCode::TlsAlreadyUnderTls)
-                    .await?;
+                secured_conn.send_code(CodesID::AlreadyUnderTLS).await?;
             }
             TransactionResult::Authentication(helo_pre_auth, mechanism, initial_response) => {
                 if let Some(rsasl) = &rsasl {
@@ -325,9 +322,7 @@ where
                     )
                     .await?;
                 } else {
-                    secured_conn
-                        .send_code(SMTPReplyCode::Code502unimplemented)
-                        .await?;
+                    secured_conn.send_code(CodesID::Unimplemented).await?;
                 }
             }
         }

@@ -21,8 +21,8 @@
 use crate::parser::{tls_certificate, tls_private_key};
 use vsmtp_common::{
     auth::Mechanism,
-    code::SMTPReplyCode,
     re::{anyhow, log},
+    CodesID, Reply,
 };
 
 ///
@@ -358,7 +358,7 @@ pub struct ConfigServerSMTP {
     #[serde(default)]
     pub timeout_client: ConfigServerSMTPTimeoutClient,
     #[serde(default)]
-    pub codes: std::collections::BTreeMap<SMTPReplyCode, String>,
+    pub codes: std::collections::BTreeMap<CodesID, Reply>,
     // NOTE: extension settings here
     pub auth: Option<ConfigServerSMTPAuth>,
 }

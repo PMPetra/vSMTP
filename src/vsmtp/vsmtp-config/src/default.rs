@@ -27,9 +27,9 @@ use crate::{
 };
 use vsmtp_common::{
     auth::Mechanism,
-    code::SMTPReplyCode,
     collection,
     re::{log, strum},
+    CodesID, Reply, ReplyCode,
 };
 
 impl Default for Config {
@@ -293,7 +293,8 @@ impl ConfigServerSMTP {
             .collect()
     }
 
-    pub(crate) fn default_smtp_codes() -> std::collections::BTreeMap<SMTPReplyCode, String> {
+    pub(crate) fn default_smtp_codes() -> std::collections::BTreeMap<CodesID, Reply> {
+        /*
         let codes: std::collections::BTreeMap<SMTPReplyCode, String> = collection! {
             SMTPReplyCode::Help => "214 joining us https://viridit.com/support".to_string(),
             SMTPReplyCode::Greetings => "220 {domain} Service ready".to_string(),
@@ -344,6 +345,14 @@ impl ConfigServerSMTP {
             "default SMTPReplyCode are ill-formed "
         );
 
+        codes
+        */
+
+        let codes: std::collections::BTreeMap<CodesID, Reply> = collection! {
+            CodesID::ParameterUnimplemented => Reply {
+                code: ReplyCode::Code(504), text_string: "Command not implemented".to_string()
+            }
+        };
         codes
     }
 }

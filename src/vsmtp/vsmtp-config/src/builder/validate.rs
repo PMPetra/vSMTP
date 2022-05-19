@@ -25,7 +25,6 @@ use crate::{
 };
 use vsmtp_common::{
     auth::Mechanism,
-    code::SMTPReplyCode,
     re::{anyhow, strum},
 };
 
@@ -150,6 +149,7 @@ impl Config {
             "Worker threads cannot be set to 0"
         );
 
+        /*
         {
             let default_values = ConfigServerSMTP::default_smtp_codes();
             let reply_codes = &mut config.server.smtp.codes;
@@ -170,6 +170,7 @@ impl Config {
                 reply_codes.insert(i, value);
             }
         }
+        */
 
         let auth_mechanism_list: Option<(Vec<Mechanism>, Vec<Mechanism>)> = config
             .server
@@ -178,46 +179,48 @@ impl Config {
             .as_ref()
             .map(|auth| auth.mechanisms.iter().partition(|m| m.must_be_under_tls()));
 
-        config.server.smtp.codes.insert(
-            SMTPReplyCode::Code250PlainEsmtp,
-            [
-                &format!("250-{}\r\n", config.server.domain),
-                &auth_mechanism_list
-                    .as_ref()
-                    .map(|(plain, secured)| {
-                        if config
-                            .server
-                            .smtp
-                            .auth
+        /*
+                config.server.smtp.codes.insert(
+                    SMTPReplyCode::Code250PlainEsmtp,
+                    [
+                        &format!("250-{}\r\n", config.server.domain),
+                        &auth_mechanism_list
                             .as_ref()
-                            .map_or(false, |auth| auth.enable_dangerous_mechanism_in_clair)
-                        {
-                            mech_list_to_code(&[secured.clone(), plain.clone()].concat())
-                        } else {
-                            mech_list_to_code(secured)
-                        }
-                    })
-                    .unwrap_or_default(),
-                "STARTTLS\r\n",
-                "8BITMIME\r\n",
-                "SMTPUTF8\r\n",
-            ]
-            .concat(),
-        );
+                            .map(|(plain, secured)| {
+                                if config
+                                    .server
+                                    .smtp
+                                    .auth
+                                    .as_ref()
+                                    .map_or(false, |auth| auth.enable_dangerous_mechanism_in_clair)
+                                {
+                                    mech_list_to_code(&[secured.clone(), plain.clone()].concat())
+                                } else {
+                                    mech_list_to_code(secured)
+                                }
+                            })
+                            .unwrap_or_default(),
+                        "STARTTLS\r\n",
+                        "8BITMIME\r\n",
+                        "SMTPUTF8\r\n",
+                    ]
+                    .concat(),
+                );
 
-        config.server.smtp.codes.insert(
-            SMTPReplyCode::Code250SecuredEsmtp,
-            [
-                &format!("250-{}\r\n", config.server.domain),
-                &auth_mechanism_list
-                    .as_ref()
-                    .map(|(must_be_secured, _)| mech_list_to_code(must_be_secured))
-                    .unwrap_or_default(),
-                "8BITMIME\r\n",
-                "SMTPUTF8\r\n",
-            ]
-            .concat(),
-        );
+                config.server.smtp.codes.insert(
+                    SMTPReplyCode::Code250SecuredEsmtp,
+                    [
+                        &format!("250-{}\r\n", config.server.domain),
+                        &auth_mechanism_list
+                            .as_ref()
+                            .map(|(must_be_secured, _)| mech_list_to_code(must_be_secured))
+                            .unwrap_or_default(),
+                        "8BITMIME\r\n",
+                        "SMTPUTF8\r\n",
+                    ]
+                    .concat(),
+                );
+        */
 
         Ok(config)
     }

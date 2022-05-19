@@ -14,7 +14,7 @@
  * this program. If not, see https://www.gnu.org/licenses/.
  *
 */
-use vsmtp_common::{code::SMTPReplyCode, collection, re::log};
+use vsmtp_common::{collection, re::log};
 
 use crate::Config;
 
@@ -45,8 +45,8 @@ fn parse() {
             .with_default_smtp_options()
             .with_default_smtp_error_handler()
             .with_smtp_codes(collection! {
-                SMTPReplyCode::Help => "214 my custom help message\r\n".to_string(),
-                SMTPReplyCode::Greetings => "220 {domain} ESMTP Service ready\r\n".to_string(),
+                // SMTPReplyCode::Help => "214 my custom help message\r\n".to_string(),
+                // SMTPReplyCode::Greetings => "220 {domain} ESMTP Service ready\r\n".to_string(),
             })
             .without_auth()
             .with_default_app()
